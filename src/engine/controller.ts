@@ -1,5 +1,5 @@
 import { GameEngine } from './engine.ts'
-import { createAnimationPlan, sampleAnimation } from './playback.ts'
+import { createAnimationPlan, motionEasings, sampleAnimation } from './playback.ts'
 import type { AnimationOptions, AnimationPlan, PlaybackFrame } from './playback.ts'
 import { freeze, isDirection } from './state.ts'
 import type { Direction, GameState, LevelDefinition } from './types.ts'
@@ -22,12 +22,13 @@ export class GameController {
   constructor(definition: unknown, options: ControllerOptions = {}) {
     const finishWithinMs = options.finishWithinMs ?? 32
     if (!Number.isFinite(finishWithinMs) || finishWithinMs <= 0) throw new RangeError('finishWithinMs must be positive and finite')
-    this.options = freeze({ ...options, finishWithinMs })
     // Validate animation parameters even if the first movement is blocked.
     for (const key of ['movementMs', 'doorMs', 'clockMs'] as const) {
       const value = options[key]
       if (value !== undefined && (!Number.isFinite(value) || value < 0)) throw new RangeError(`${key} must be finite and nonnegative`)
     }
+    if (options.easing !== undefined && !motionEasings.includes(options.easing)) throw new RangeError('Invalid motion easing')
+    this.options = freeze({ ...options, finishWithinMs })
     this.engine = new GameEngine(definition)
   }
 

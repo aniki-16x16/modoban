@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   GameController, GameEngine, LevelValidationError, applyChanges,
-  createAnimationPlan, parseLevel, sampleAnimation,
+  createAnimationPlan, motionEasings, parseLevel, sampleAnimation,
 } from '../src/engine/index.ts'
 import type {
   Direction, DoorDefinition, EntityDefinition, GameState, LevelDefinition,
@@ -476,6 +476,40 @@ test('independent actions can animate concurrently; shared space keeps dependenc
   const doors = plan.clips.filter(clip => clip.action.kind === 'door')
   assert.equal(doors[0].startMs, doors[1].startMs)
   assert.equal(doors[0].endMs, doors[1].endMs)
+})
+
+test('easing keeps a pushed box one cell ahead and preserves raw time progress', () => {
+  const engine = new GameEngine(level({ entities: [player(), box('box', 1, 0)] }))
+  const trace = move(engine, 'right')
+  const expectedQuarter = [0.25, 0.4375, 0.578125, 0.0625]
+  for (const [index, easing] of motionEasings.entries()) {
+    const plan = createAnimationPlan(trace, { movementMs: 100, clockMs: 0, easing })
+    const start = sampleAnimation(plan, 0).entities.find(item => item.entityId === 'player')!
+    assert.deepEqual(start.position, point(0, 0))
+    for (const elapsed of [1, 25, 50, 75, 99]) {
+      const frame = sampleAnimation(plan, elapsed)
+      const playerMotion = frame.entities.find(item => item.entityId === 'player')!
+      const boxMotion = frame.entities.find(item => item.entityId === 'box')!
+      assert.equal(playerMotion.progress, elapsed / 100)
+      assert.ok(Math.abs(boxMotion.position.x - playerMotion.position.x - 1) < 1e-12)
+      if (elapsed === 25) assert.equal(playerMotion.position.x, expectedQuarter[index])
+    }
+    assert.deepEqual(sampleAnimation(plan, plan.durationMs).state, engine.state)
+  }
+})
+
+test('eased door displacement stays synchronized with its pushed entity', () => {
+  const engine = new GameEngine(level({
+    entities: [player(), box('box', 1, 2)],
+    mechanisms: [conveyor('belt', 'A', 1, 2), { id: 'plate', kind: 'pressure', position: point(2, 2) }],
+    doors: [{ id: 'door', position: point(2, 2), direction: 'up', initialExtended: false, inputs: [{ kind: 'pressure', id: 'plate' }] }],
+  }))
+  const plan = createAnimationPlan(move(engine), { easing: 'ease-out-cubic' })
+  const clip = plan.clips.find(item => item.action.kind === 'door')!
+  const frame = sampleAnimation(plan, clip.startMs + (clip.endMs - clip.startMs) / 4)
+  const motion = frame.entities.find(item => item.entityId === 'box')!
+  assert.equal(frame.doors[0].extension, 0.578125)
+  assert.equal(motion.position.y, motion.from.y + (motion.to.y - motion.from.y) * frame.doors[0].extension)
 })
 
 test('derived AND targets wait for inputs that changed before the target became active', () => {

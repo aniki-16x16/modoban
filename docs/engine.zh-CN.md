@@ -70,7 +70,11 @@ function execute(level: LevelDefinition) {
 
 `createAnimationPlan(trace, options)` 生成时间线，`sampleAnimation(plan, elapsedMs)` 返回离散展示状态及正在运动的实体、门体。实体运动提供起终点、插值位置和进度；门体提供伸出比例。
 
-默认主动移动与输送为 90ms，门动作为 110ms，周期刻度为 40ms。时间均可配置，长链没有统一时长截断。这些是初始调参值，视觉手感需要后续画面验证。
+引擎默认主动移动与输送为 90ms，门动作为 110ms，周期刻度为 40ms，缓动为 `linear`。时间均可配置，长链没有统一时长截断。`easing` 支持 `linear`、`ease-out-quad`、`ease-out-cubic`、`ease-in-out-cubic`；同一动作中的门体和被推动实体使用同一缓动，保持同步。运动的 `progress` 始终表示线性时间进度，`position` / `extension` 则是缓动后的展示值。
+
+页面参数集中在 `src/motion.ts` 的 `defaultMotionSettings`：移动 110ms、门 110ms、周期刻度 40ms、连续输入收尾 16ms、缓动 `ease-out-quad`、拉伸 30%、到位挤压 20%。二次减速缓动为 `1 - (1 - t)^2`，让角色起步更快。形变沿移动轴先拉伸再压缩，垂直轴反向缩放以保持面积，首尾恢复原状，不增加播放时间；系统偏好减少动态效果时关闭形变。
+
+页面直接使用源码参数，不再提供调参面板或读写浏览器中的运动设置。长按仍使用系统按键重复；该系统的首次重复延迟不由移动时长控制。
 
 ## 输入控制器
 

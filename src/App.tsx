@@ -4,6 +4,7 @@ import { GameController } from './engine/index.ts'
 import type { Direction, LevelDefinition, PlaybackFrame } from './engine/index.ts'
 import { chapterOne } from './levels/chapter-one.ts'
 import type { ChapterLevel } from './levels/chapter-one.ts'
+import { defaultMotionSettings, playerScale } from './motion.ts'
 import './style.css'
 
 const tile = 64
@@ -81,14 +82,15 @@ function Board({ level, frame, connections, exitDirection = 'right' }: { level: 
       const position = motion?.position ?? entity.position
       if (!position) return null
       const plate = level.mechanisms.find(item => item.position.x === position.x && item.position.y === position.y)
+      const scale = playerScale(motion)
       return <g key={entity.id} transform={`translate(${position.x * tile + 32}, ${position.y * tile + 32})`} filter="url(#piece-shadow)">
-        {entity.kind === 'player' ? <>
+        {entity.kind === 'player' ? <g className="player-body" transform={`scale(${scale.x}, ${scale.y})`}>
           <circle cy="2" r="20" fill="#a34532" />
           <circle cy="-1" r="20" fill="#df7955" stroke="#f8c5a4" strokeWidth="1.5" />
           <circle cx="-6" cy="-4" r="2.4" fill="#53382d" />
           <circle cx="6" cy="-4" r="2.4" fill="#53382d" />
           <path d="M-5 5q5 5 10 0" stroke="#53382d" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-        </> : <>
+        </g> : <>
           <rect x="-23" y="-20" width="46" height="45" rx="7" fill="#8f6039" />
           <rect x="-23" y="-24" width="46" height="45" rx="7" fill="#c99b64" stroke="#edc994" strokeWidth="2" />
           <path d="M-16-17 16 14m0-31L-16 14" stroke="#97683f" strokeWidth="5" strokeLinecap="round" />
@@ -109,7 +111,7 @@ function LevelGame({ puzzle, completed, onComplete, onNext }: {
   onComplete: (id: string) => void
   onNext?: () => void
 }) {
-  const [controller] = useState(() => new GameController(puzzle.definition, { movementMs: 105, doorMs: 140 }))
+  const [controller] = useState(() => new GameController(puzzle.definition, defaultMotionSettings))
   const [frame, setFrame] = useState(() => controller.frame())
   const [hintCount, setHintCount] = useState(0)
   const [connections, setConnections] = useState(false)

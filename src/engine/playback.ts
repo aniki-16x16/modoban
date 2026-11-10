@@ -1,10 +1,24 @@
 import { applyChanges, freeze, samePosition } from './state.ts'
 import type { EngineAction, GameState, Position, TurnTrace } from './types.ts'
 
+export type MotionEasing = 'linear' | 'ease-out-quad' | 'ease-out-cubic' | 'ease-in-out-cubic'
+
+export const motionEasings: readonly MotionEasing[] = ['linear', 'ease-out-quad', 'ease-out-cubic', 'ease-in-out-cubic']
+
+function ease(progress: number, easing: MotionEasing): number {
+  switch (easing) {
+    case 'ease-out-quad': return 1 - (1 - progress) ** 2
+    case 'ease-out-cubic': return 1 - (1 - progress) ** 3
+    case 'ease-in-out-cubic': return progress < 0.5 ? 4 * progress ** 3 : 1 - (-2 * progress + 2) ** 3 / 2
+    default: return progress
+  }
+}
+
 export interface AnimationOptions {
   readonly movementMs?: number
   readonly doorMs?: number
   readonly clockMs?: number
+  readonly easing?: MotionEasing
 }
 
 export interface AnimationClip {
@@ -17,6 +31,7 @@ export interface AnimationPlan {
   readonly trace: TurnTrace
   readonly clips: readonly AnimationClip[]
   readonly durationMs: number
+  readonly easing: MotionEasing
 }
 
 export interface EntityMotion {
@@ -24,6 +39,7 @@ export interface EntityMotion {
   readonly from: Position
   readonly to: Position
   readonly position: Position
+  /** Linear time progress, independent of positional easing. */
   readonly progress: number
   readonly actionId: number
 }
@@ -55,6 +71,8 @@ export function createAnimationPlan(trace: TurnTrace, options: AnimationOptions 
   const movementMs = duration(options.movementMs ?? 90, 'movementMs')
   const doorMs = duration(options.doorMs ?? 110, 'doorMs')
   const clockMs = duration(options.clockMs ?? 40, 'clockMs')
+  const easing = options.easing ?? 'linear'
+  if (!motionEasings.includes(easing)) throw new RangeError('Invalid motion easing')
   const ends = new Map<number, number>()
   const clips: AnimationClip[] = []
   let durationMs = 0
@@ -80,7 +98,7 @@ export function createAnimationPlan(trace: TurnTrace, options: AnimationOptions 
     ends.set(action.id, endMs)
     clips.push({ action, startMs, endMs })
   }
-  return freeze({ trace, clips, durationMs })
+  return freeze({ trace, clips, durationMs, easing })
 }
 
 export function sampleAnimation(plan: AnimationPlan, elapsedMs: number): PlaybackFrame {
@@ -99,6 +117,7 @@ export function sampleAnimation(plan: AnimationPlan, elapsedMs: number): Playbac
     }
     if (elapsed < clip.startMs) continue
     const progress = (elapsed - clip.startMs) / (clip.endMs - clip.startMs)
+    const displacement = ease(progress, plan.easing)
     for (const change of clip.action.changes) {
       if (change.kind === 'entity' && change.before.position && change.after.position
         && !samePosition(change.before.position, change.after.position)) {
@@ -106,7 +125,7 @@ export function sampleAnimation(plan: AnimationPlan, elapsedMs: number): Playbac
         const to = change.after.position
         entities.push({
           entityId: change.after.id, from, to, progress, actionId: clip.action.id,
-          position: { x: from.x + (to.x - from.x) * progress, y: from.y + (to.y - from.y) * progress },
+          position: { x: from.x + (to.x - from.x) * displacement, y: from.y + (to.y - from.y) * displacement },
         })
       }
       if (change.kind === 'door' && change.before.extended !== change.after.extended) {
@@ -114,7 +133,7 @@ export function sampleAnimation(plan: AnimationPlan, elapsedMs: number): Playbac
         const toExtension = Number(change.after.extended)
         doors.push({
           doorId: change.after.id, fromExtension, toExtension, progress, actionId: clip.action.id,
-          extension: fromExtension + (toExtension - fromExtension) * progress,
+          extension: fromExtension + (toExtension - fromExtension) * displacement,
         })
       }
     }
