@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { GameController } from './engine/index.ts'
 import type { Direction, LevelDefinition, PlaybackFrame } from './engine/index.ts'
@@ -22,7 +22,7 @@ function Arrow({ direction = 'right' }: { direction?: Direction }) {
   </svg>
 }
 
-function Board({ level, frame, connections, exitDirection = 'right' }: { level: LevelDefinition; frame: PlaybackFrame; connections: boolean; exitDirection?: Direction }) {
+function Board({ level, frame, exitDirection = 'right' }: { level: LevelDefinition; frame: PlaybackFrame; exitDirection?: Direction }) {
   const walls = new Set(level.walls.map(p => `${p.x},${p.y}`))
   const floors = []
   for (let y = 0; y < level.height; y += 1) {
@@ -47,11 +47,6 @@ function Board({ level, frame, connections, exitDirection = 'right' }: { level: 
       <path d="M20 32h24m-9-9 9 9-9 9" transform={`rotate(${{ right: 0, down: 90, left: 180, up: 270 }[exitDirection]},32,32)`} fill="none" stroke="#4f7852" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
       <text x="32" y="61" textAnchor="middle" fontSize="8" fill="#486749" letterSpacing="2">出口</text>
     </g>
-    {connections && level.mechanisms.map(plate => {
-      const door = level.doors.find(item => item.inputs.some(input => input.kind === 'pressure' && input.id === plate.id))
-      if (!door) return null
-      return <path key={plate.id} d={`M${plate.position.x * tile + 32},${plate.position.y * tile + 32} L${door.position.x * tile + 32},${door.position.y * tile + 32}`} stroke={circuitColors[circuitNumber(plate.id) - 1]} strokeWidth="3" strokeDasharray="5 7" opacity=".7" pointerEvents="none" />
-    })}
     {level.mechanisms.map(plate => {
       const active = frame.state.pressures.find(item => item.id === plate.id)?.active
       const color = circuitColors[circuitNumber(plate.id) - 1]
@@ -105,19 +100,100 @@ function Board({ level, frame, connections, exitDirection = 'right' }: { level: 
   </svg>
 }
 
-function LevelGame({ puzzle, completed, onComplete, onNext }: {
+function LevelPreview({ level, exitDirection = 'right' }: { level: LevelDefinition; exitDirection?: Direction }) {
+  const walls = new Set(level.walls.map(position => `${position.x},${position.y}`))
+  return <svg className="level-preview" viewBox={`-1 -1 ${level.width + 2} ${level.height + 2}`} fill="none" aria-hidden="true">
+    {Array.from({ length: level.width * level.height }, (_, index) => {
+      const x = index % level.width
+      const y = Math.floor(index / level.width)
+      return walls.has(`${x},${y}`) ? null : <rect key={index} x={x + .04} y={y + .04} width=".92" height=".92" rx=".1" fill="#dce1cf" stroke="#cdd5bf" strokeWidth=".025" />
+    })}
+    {level.mechanisms.map(plate => <circle key={plate.id} cx={plate.position.x + .5} cy={plate.position.y + .5} r=".3" stroke={circuitColors[circuitNumber(plate.id) - 1]} strokeWidth=".07" />)}
+    {level.doors.map(door => <path key={door.id} className="preview-gate" d={`M${door.position.x + .2} ${door.position.y + .2}h.6m-.5 0v.6m.2-.6v.6m.2-.6v.6`} stroke={circuitColors[circuitNumber(door.id) - 1]} strokeWidth=".07" strokeLinecap="round" />)}
+    {level.entities.map(entity => entity.kind === 'player'
+      ? <g className="preview-player" key={entity.id} style={{ transformOrigin: `${entity.position.x + .5}px ${entity.position.y + .5}px` }}>
+        <circle cx={entity.position.x + .5} cy={entity.position.y + .5} r=".32" fill="#df7955" />
+        <path d={`M${entity.position.x + .39} ${entity.position.y + .45}v.02m.22-.02v.02`} stroke="#643d2e" strokeWidth=".06" strokeLinecap="round" />
+      </g>
+      : <g className="preview-crate" key={entity.id}>
+        <rect x={entity.position.x + .18} y={entity.position.y + .15} width=".64" height=".64" rx=".08" fill="#c99b64" stroke="#b28651" strokeWidth=".04" />
+        <path d={`m${entity.position.x + .3} ${entity.position.y + .27}.4.4m0-.4-.4.4`} stroke="#e9c28a" strokeWidth=".07" />
+      </g>)}
+    <rect x={level.exit.x + .16} y={level.exit.y + .16} width=".68" height=".68" rx=".12" fill="#91aa7f" />
+    <path d={`M${level.exit.x + .32} ${level.exit.y + .5}h.36m-.15-.15.15.15-.15.15`} transform={`rotate(${{ right: 0, down: 90, left: 180, up: 270 }[exitDirection]},${level.exit.x + .5},${level.exit.y + .5})`} stroke="#f8f8ef" strokeWidth=".07" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+}
+
+function LevelSelect({ completed, returnLevel }: { completed: readonly string[]; returnLevel: string | null }) {
+  const selectionRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (returnLevel) selectionRef.current?.querySelector<HTMLAnchorElement>(`a[href="#play/${returnLevel}"]`)?.focus({ preventScroll: true })
+  }, [returnLevel])
+
+  return <main className="selection-page" ref={selectionRef}>
+    <header className="selection-header">
+      <h1 className="brand"><span className="brand-mark" aria-hidden="true"><i /><i /><i /><i /></span>modoban<span className="brand-dot">.</span></h1>
+    </header>
+    <section className="chapter" aria-labelledby="chapter-title">
+      <div className="chapter-heading">
+        <div>
+          <p className="eyebrow">CHAPTER 01 <span>压力板与伸缩门</span></p>
+          <h2 id="chapter-title">压住与让路<span className="heading-dot" aria-hidden="true">.</span></h2>
+          <p className="chapter-description">留住一个开关，给自己腾出一条路。</p>
+        </div>
+        <div className="chapter-index" aria-hidden="true">01</div>
+      </div>
+      <div className="chapter-meta"><span>第一章 <i /> {chapterOne.length.toString().padStart(2, '0')} 个关卡</span><span>{completed.length.toString().padStart(2, '0')} / {chapterOne.length.toString().padStart(2, '0')} 已完成</span></div>
+      <nav className="level-grid" aria-label="第一章关卡">
+        {chapterOne.map(level => {
+          const cleared = completed.includes(level.definition.id)
+          return <a key={level.definition.id} href={`#play/${level.definition.id}`} className={`level-card${cleared ? ' is-complete' : ''}`}>
+            <div className="level-art">
+              <span className="art-corner corner-top" />
+              <LevelPreview level={level.definition} exitDirection={level.exitDirection} />
+              <span className="art-corner corner-bottom" />
+              <span className="art-number">{level.number}</span>
+              {cleared && <span className="completion-badge"><span aria-hidden="true">✓</span> 已完成</span>}
+            </div>
+            <div className="level-info">
+              <div className="level-card-heading"><span className="level-number">{level.number}</span><h3>{level.title}</h3><span className="level-enter" aria-label={cleared ? '重新游玩' : '开始游玩'}><Arrow /></span></div>
+              <p>{level.description}</p>
+              <div className="level-details"><span>{level.definition.entities.filter(entity => entity.kind === 'box').length} 只箱子</span><i /><span>{level.definition.mechanisms.length} 组机关</span></div>
+            </div>
+          </a>
+        })}
+      </nav>
+    </section>
+  </main>
+}
+
+function LevelGame({ puzzle, onComplete, onReturn, onNext }: {
   puzzle: ChapterLevel
-  completed: boolean
   onComplete: (id: string) => void
+  onReturn: () => void
   onNext?: () => void
 }) {
   const [controller] = useState(() => new GameController(puzzle.definition, defaultMotionSettings))
   const [frame, setFrame] = useState(() => controller.frame())
-  const [hintCount, setHintCount] = useState(0)
-  const [connections, setConnections] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [notice, setNotice] = useState('')
+  const boardRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDialogElement>(null)
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
+  const won = frame.finished && frame.state.outcome.kind === 'won'
+  const failed = frame.finished && (frame.state.outcome.kind === 'dead' || frame.state.outcome.kind === 'loop')
+
+  useEffect(() => { boardRef.current?.focus({ preventScroll: true }) }, [])
 
   useEffect(() => {
+    const menu = menuRef.current
+    if (menuOpen) menu?.showModal()
+    else menu?.close()
+    return () => { menu?.close() }
+  }, [menuOpen])
+
+  useEffect(() => {
+    if (menuOpen) return
     let animationId: number
     let previous = performance.now()
     const tick = (now: number) => {
@@ -127,12 +203,11 @@ function LevelGame({ puzzle, completed, onComplete, onNext }: {
     }
     animationId = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(animationId)
-  }, [controller])
+  }, [controller, menuOpen])
 
   const move = useCallback((direction: Direction) => {
     const result = controller.input(direction)
-    if (result === 'blocked') setNotice('这一步走不通。可以换个方向，或撤销上一步。')
-    else setNotice('')
+    setNotice(result === 'blocked' ? '这一步走不通。可以换个方向，或撤销上一步。' : '')
     setFrame(controller.frame())
   }, [controller])
 
@@ -151,10 +226,15 @@ function LevelGame({ puzzle, completed, onComplete, onNext }: {
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return
-      if (event.target instanceof HTMLElement && event.target.matches('input:not([type="checkbox"]):not([type="radio"]), textarea, select, [contenteditable="true"]')) return
+      if (event.target instanceof HTMLElement && event.target.matches('input, textarea, select, [contenteditable="true"]')) return
+      // The native dialog handles Escape, Enter, and focus while the game is paused.
+      if (menuOpen) return
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key
       const direction = directionKeys[key]
-      if (direction) {
+      if (key === 'Escape' && !event.repeat) {
+        event.preventDefault()
+        setMenuOpen(true)
+      } else if (direction) {
         event.preventDefault()
         move(direction)
       } else if (key === 'z' || key === 'Backspace') {
@@ -163,95 +243,87 @@ function LevelGame({ puzzle, completed, onComplete, onNext }: {
       } else if (key === 'r' && !event.repeat) {
         event.preventDefault()
         reset()
+      } else if (key === 'Enter' && won && !event.repeat && !(event.target instanceof HTMLElement && event.target.closest('button, a'))) {
+        event.preventDefault()
+        ;(onNext ?? onReturn)()
       }
     }
     window.addEventListener('keydown', keydown)
     return () => window.removeEventListener('keydown', keydown)
-  }, [move, undo, reset])
+  }, [menuOpen, move, undo, reset, won, onNext, onReturn])
 
-  const won = frame.finished && frame.state.outcome.kind === 'won'
-  const failed = frame.finished && (frame.state.outcome.kind === 'dead' || frame.state.outcome.kind === 'loop')
   useEffect(() => {
     if (won) onComplete(puzzle.definition.id)
   }, [won, puzzle.definition.id, onComplete])
 
-  return <div className="play-layout">
-    <section className="play-panel" aria-label={`第${puzzle.number}关 ${puzzle.title}`}>
-      <div className="play-heading">
-        <div className="level-name"><span className="level-number">{puzzle.number}</span><h2>{puzzle.title}</h2></div>
-        <div className="turn-count"><span>{frame.state.turn.toString().padStart(2, '0')}</span> 步</div>
-      </div>
-      <div className="board-space" tabIndex={0} aria-label="游戏区域，使用方向键或 WASD 移动，Z 撤销，R 重来">
-        <Board level={puzzle.definition} frame={frame} connections={connections} exitDirection={puzzle.exitDirection} />
-      </div>
-      <div className="board-toolbar">
-        <div className="action-group">
-          <button onClick={undo} disabled={!controller.canUndo}><span aria-hidden="true">↶</span> 撤销 <kbd>Z</kbd></button>
-          <button onClick={reset}><span aria-hidden="true">↻</span> 重来 <kbd>R</kbd></button>
-        </div>
-        <label className="connection-toggle"><input type="checkbox" checked={connections} onChange={event => setConnections(event.target.checked)} /> 显示机关连接</label>
-      </div>
-      <div className="movement-controls" aria-label="方向控制">
-        {(['left', 'up', 'down', 'right'] as const).map(direction => <button key={direction} aria-label={{ left: '向左', up: '向上', down: '向下', right: '向右' }[direction]} onClick={() => move(direction)}><Arrow direction={direction} /></button>)}
-      </div>
-      <p className="keyboard-help"><span>↑ ↓ ← →</span> / WASD 移动 <i /> 每一步都可以撤销</p>
-      <p className="sr-only" role="status" aria-live="polite">{notice}</p>
-    </section>
+  return <main className={`play-page${won ? ' is-won' : ''}`} aria-label={`第${puzzle.number}关 ${puzzle.title}`} style={{ '--board-ratio': puzzle.definition.width / puzzle.definition.height, '--board-width': `${puzzle.definition.width * tile}px` } as CSSProperties}>
+    <div className="board-space" ref={boardRef} tabIndex={-1} aria-label="游戏区域，方向键或 WASD 移动，Z 撤销，R 重来，Esc 菜单。触屏可滑动地图移动。"
+      onTouchStart={event => {
+        if (menuOpen || event.touches.length !== 1) { touchStart.current = null; return }
+        touchStart.current = { x: event.touches[0].clientX, y: event.touches[0].clientY }
+      }}
+      onTouchCancel={() => { touchStart.current = null }}
+      onTouchEnd={event => {
+        const start = touchStart.current
+        touchStart.current = null
+        if (!start || menuOpen) return
+        const dx = event.changedTouches[0].clientX - start.x
+        const dy = event.changedTouches[0].clientY - start.y
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return
+        move(Math.abs(dx) > Math.abs(dy) ? dx > 0 ? 'right' : 'left' : dy > 0 ? 'down' : 'up')
+      }}>
+      <Board level={puzzle.definition} frame={frame} exitDirection={puzzle.exitDirection} />
+    </div>
+    <footer className="play-help" aria-label="操作提示">
+      {won ? <button className="help-action next-action" onClick={onNext ?? onReturn}><kbd>Enter</kbd><span>{onNext ? '下一关' : '返回关卡选择'}</span><Arrow /></button>
+        : <div className="movement-help"><div className="direction-keys" aria-label="移动方向">
+          {(['up', 'left', 'down', 'right'] as const).map(direction => <button key={direction} aria-label={{ left: '向左', up: '向上', down: '向下', right: '向右' }[direction]} onClick={() => move(direction)}><Arrow direction={direction} /></button>)}
+        </div><span className="wasd-help">/ <kbd>WASD</kbd></span><span className="move-label">移动</span></div>}
+      <span className="help-divider" aria-hidden="true" />
+      <button className="help-action" onClick={undo} disabled={!controller.canUndo}><kbd>Z</kbd><span>撤销</span></button>
+      <button className="help-action" onClick={reset}><kbd>R</kbd><span>重来</span></button>
+      <button className="help-action" onClick={() => setMenuOpen(true)} aria-haspopup="dialog"><kbd>Esc</kbd><span>菜单</span></button>
+    </footer>
+    <p className="sr-only" role="status" aria-live="polite">{won ? `关卡完成。${onNext ? '按 Enter 进入下一关。' : '按 Enter 返回关卡选择。'}` : failed ? '无法继续，按 Z 撤销或 R 重来。' : notice}</p>
+    <dialog className="pause-menu" ref={menuRef} aria-label="暂停菜单" onCancel={event => { event.preventDefault(); setMenuOpen(false) }} onClick={event => {
+      if (event.target !== event.currentTarget) return
+      const bounds = event.currentTarget.getBoundingClientRect()
+      if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) setMenuOpen(false)
+    }}>
+      <button className="return-button" onClick={onReturn}><Arrow direction="left" /><span>返回关卡选择</span></button>
+    </dialog>
+  </main>
+}
 
-    <aside className="guide-panel">
-      <div className="guide-label"><span className="tiny-square" /> {puzzle.number === '01' ? '认识机关' : '试着组合'}</div>
-      <h3>{puzzle.description}</h3>
-      <p className="introduction">{puzzle.introduction}</p>
-      <div className="circuit-list" aria-label="机关状态">
-        {puzzle.definition.mechanisms.toSorted((a, b) => circuitNumber(a.id) - circuitNumber(b.id)).map(plate => {
-          const active = frame.state.pressures.find(item => item.id === plate.id)?.active
-          const extended = frame.state.doors.find(item => item.id === plate.id)?.extended
-          const number = circuitNumber(plate.id)
-          return <div className={`circuit-row${active ? ' active' : ''}`} key={plate.id} style={{ '--circuit-color': circuitColors[number - 1] } as CSSProperties}>
-            <span className="circuit-badge">{number}</span>
-            <div><strong>压板 {number}</strong><span>{active ? '已压住' : '未压住'}</span></div>
-            <span className="circuit-arrow">→</span>
-            <div><strong>门 {number}</strong><span>{extended ? '伸出' : '收起'}</span></div>
-            <span className={`signal-dot${active ? ' on' : ''}`} />
-          </div>
-        })}
-      </div>
-      <div className="goal-note"><span className="exit-icon"><Arrow /></span><p>走到出口即可通关。<br /><span>箱子没有指定的最终位置。</span></p></div>
-
-      {won ? <div className="result-card" role="status">
-        <span className="result-eyebrow">关卡完成</span>
-        <h3>顺利抵达。</h3>
-        <p>{puzzle.completion}</p>
-        {onNext ? <button className="primary-button" onClick={onNext}>继续 · 下一关 <Arrow /></button> : <button className="primary-button" onClick={reset}>再试一次 <span aria-hidden="true">↻</span></button>}
-      </div> : failed ? <div className="result-card failure" role="alert"><h3>试试另一种安排</h3><p>可以撤销，回到刚才的局面。</p><button className="primary-button" onClick={undo}>撤销一步</button></div> : <div className="hint-area">
-        <div className="hint-heading"><span>需要一点提示？</span><span>{hintCount} / {puzzle.hints.length}</span></div>
-        {puzzle.hints.slice(0, hintCount).map((hint, index) => <p className="hint" key={hint}><span>{index + 1}</span>{hint}</p>)}
-        <button className="hint-button" onClick={() => setHintCount(count => Math.min(count + 1, puzzle.hints.length))} disabled={hintCount === puzzle.hints.length}>{hintCount === 0 ? '给我一点线索' : hintCount === puzzle.hints.length ? '提示已全部展开' : '再给一点提示'} <span aria-hidden="true">+</span></button>
-      </div>}
-      {completed && !won && <p className="replay-note">这关已完成，随时可以再试。</p>}
-    </aside>
-  </div>
+function levelFromHash() {
+  return chapterOne.find(level => window.location.hash === `#play/${level.definition.id}`)
 }
 
 function App() {
-  const [activeLevel, setActiveLevel] = useState(0)
+  const [puzzle, setPuzzle] = useState(levelFromHash)
   const [completed, setCompleted] = useState<readonly string[]>([])
+  const [returnLevel, setReturnLevel] = useState<string | null>(puzzle?.definition.id ?? null)
   const complete = useCallback((id: string) => setCompleted(previous => previous.includes(id) ? previous : [...previous, id]), [])
-  const puzzle = chapterOne[activeLevel]
-  return <main className="app-shell">
-    <header className="site-header">
-      <a className="brand" href="./" aria-label="Modoban 首页"><span className="brand-mark" aria-hidden="true"><i /><i /><i /><i /></span>modoban<span className="brand-dot">.</span></a>
-      <span className="header-note">一步一机关</span>
-      <span className="chapter-progress">{completed.length} <span>/ 02 完成</span></span>
-    </header>
-    <div className="chapter-heading"><div><p className="eyebrow">CHAPTER 01 <span>—</span> 压力板与伸缩门</p><h1>压住与让路</h1><p className="chapter-description">留住一个开关，给自己腾出一条路。</p></div><div className="chapter-stamp" aria-hidden="true">01<span>第一章</span></div></div>
-    <nav className="level-tabs" aria-label="第一章关卡">
-      {chapterOne.map((level, index) => <button key={level.definition.id} className={`level-tab${index === activeLevel ? ' selected' : ''}`} aria-current={index === activeLevel ? 'step' : undefined} onClick={() => setActiveLevel(index)}><span>{level.number}</span><strong>{level.title}</strong>{completed.includes(level.definition.id) ? <span className="tab-status" aria-label="已完成">✓</span> : <span className="tab-dot" />}</button>)}
-      <span className="chapter-caption">小小的机关，也有两难的安排。</span>
-    </nav>
-    <LevelGame key={puzzle.definition.id} puzzle={puzzle} completed={completed.includes(puzzle.definition.id)} onComplete={complete} onNext={activeLevel + 1 < chapterOne.length ? () => setActiveLevel(activeLevel + 1) : undefined} />
-    <footer className="site-footer"><span>MODULO + SOKOBAN</span><span>慢慢想，不计时。</span></footer>
-  </main>
+  const returnToLevels = useCallback(() => { window.location.hash = 'levels' }, [])
+
+  useEffect(() => {
+    const navigate = () => {
+      const next = levelFromHash()
+      if (next) setReturnLevel(next.definition.id)
+      setPuzzle(next)
+    }
+    window.addEventListener('hashchange', navigate)
+    return () => window.removeEventListener('hashchange', navigate)
+  }, [])
+
+  useEffect(() => {
+    document.title = puzzle ? `${puzzle.number} ${puzzle.title} · Modoban` : 'Modoban · 关卡选择'
+  }, [puzzle])
+
+  const next = puzzle ? chapterOne[chapterOne.indexOf(puzzle) + 1] : undefined
+  return puzzle
+    ? <LevelGame key={puzzle.definition.id} puzzle={puzzle} onComplete={complete} onReturn={returnToLevels} onNext={next ? () => { window.location.hash = `play/${next.definition.id}` } : undefined} />
+    : <LevelSelect completed={completed} returnLevel={returnLevel} />
 }
 
 export default App
