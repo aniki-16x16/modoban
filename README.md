@@ -1,32 +1,28 @@
-# React + TypeScript + Vite
+# Modoban
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Modoban 是一款以数论思想为基础的回合制网格推箱解谜游戏。名称结合了 modulo（取模）与 Sokoban（推箱子）。玩家通过搬运箱子、调整周期机关和利用传送带，安排一连串机关反应，最终到达出口。
 
-Currently, two official plugins are available:
+## 设计文档
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- [游戏规则](docs/game-rules.zh-CN.md)记录当前已确认的玩法、回合结算、边界情况与规则核对案例。
 
-## React Compiler
+## 当前状态
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+项目使用 React、TypeScript 和 Vite。模板示例页面与素材已清理，页面仅保留项目名称，游戏逻辑尚待实现。
 
-## Expanding the Oxlint configuration
+当前原型采用二维网格，通过格子样式、方向箭头、机关组号和周期刻度表达状态。
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## 本地命令
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+```sh
+npm run lint
+npm run build
+npm run preview
+```
+
+`lint` 执行 Oxlint，`build` 执行 TypeScript 检查并生成 Vite 产物，`preview` 预览构建产物。
