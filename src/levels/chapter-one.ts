@@ -1,6 +1,5 @@
 import { parseLevel } from '../engine/index.ts'
 import type { Direction, LevelDefinition, Position } from '../engine/index.ts'
-import { chapterFinale } from './chapter-finale.ts'
 
 export interface ChapterLevel {
   readonly number: string
@@ -13,7 +12,7 @@ export interface ChapterLevel {
   readonly definition: LevelDefinition
 }
 
-/** Uppercase letters are plates; matching lowercase letters are retracted-by-pressure doors. */
+/** A–D and 1–7 (A–G) are plates; matching lowercase letters are retracted-by-pressure doors. */
 export function pressureRoom(id: string, rows: readonly string[]): LevelDefinition {
   const width = rows[0].length
   const walls: Position[] = []
@@ -29,8 +28,10 @@ export function pressureRoom(id: string, rows: readonly string[]): LevelDefiniti
       else if (tile === '@' || tile === '$') {
         entities.push({ id: tile === '@' ? 'player' : `box-${entities.filter(item => item.kind === 'box').length + 1}`, kind: tile === '@' ? 'player' : 'box', position })
       } else if (tile === 'E') exit = position
-      else if (/^[A-D]$/.test(tile)) mechanisms.push({ id: tile, kind: 'pressure', position })
-      else if (/^[a-d]$/.test(tile)) {
+      else if (/^[A-D1-7]$/.test(tile)) {
+        const id = /^[1-7]$/.test(tile) ? String.fromCharCode(64 + Number(tile)) : tile
+        mechanisms.push({ id, kind: 'pressure', position })
+      } else if (/^[a-g]$/.test(tile)) {
         doors.push({ id: tile.toUpperCase(), position, direction: 'down', initialExtended: true, inputs: [{ kind: 'pressure', id: tile.toUpperCase() }] })
       } else if (tile !== '.') throw new Error(`${id}: unknown tile ${tile}`)
     }
@@ -136,5 +137,34 @@ export const chapterOne: readonly ChapterLevel[] = [
       '##############',
     ]),
   },
-  chapterFinale,
+  {
+    number: '05',
+    title: '连锁',
+    description: '一排箱子，牵动整座工坊。',
+    introduction: '门可以同时推动相邻的一排物体。被推动的箱子压住或离开压板后，另一扇门会在同一回合接着响应。',
+    hints: [
+      '入口已经展示了整排推进与连锁开门。中央竖道里的两只箱子，也不能靠角色逐只向下推。',
+      '中央前箱打开玫红色门后，先考虑门格里要装什么，再让它离开压板。原本排在后面的箱子，能接替它的开关任务。',
+      '取出入口上方可回收的箱子，送入玫红色门格。中央前箱移开后，门会把货物推上绿色按钮，打开右侧运输口。用中央后箱重新压住玫红色按钮；把前箱运入右侧房间并留出竖道，再从上方把绿色按钮上的货物推出，绕到下方反推到蓝色按钮。另一箱送往橙色按钮。',
+    ],
+    completion: '第一章完成。你已经能让箱子、开关和门共同完成一条运输路线。',
+    definition: pressureRoom('chapter-1-05', [
+      '########################',
+      '#@1a####################',
+      '###$..##################',
+      '#..$..##################',
+      '#.#2#b#.........########',
+      '#..#......#.....########',
+      '#........3c.....d#######',
+      '#.........$#....5#######',
+      '#........#$#.###.#######',
+      '#.........4....#6#######',
+      '######.........#...7####',
+      '#######........#....####',
+      '#######........e....fgE#',
+      '#######........#....####',
+      '################....####',
+      '########################',
+    ]),
+  },
 ]
