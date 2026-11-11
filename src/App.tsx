@@ -8,7 +8,7 @@ import { defaultMotionSettings, playerScale } from './motion.ts'
 import './style.css'
 
 const tile = 64
-const circuitColors = ['#b17c28', '#7a6aa6', '#357f86', '#b45965']
+const circuitColors = ['#b17c28', '#7a6aa6', '#357f86', '#b45965', '#57884d', '#4f83b5', '#c56b32']
 // Colors follow connected controls, independent of the names assigned to doors.
 function circuitPalette(level: LevelDefinition) {
   const groups: Set<string>[] = []

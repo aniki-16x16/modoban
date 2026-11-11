@@ -1,5 +1,6 @@
 import { parseLevel } from '../engine/index.ts'
 import type { Direction, LevelDefinition, Position } from '../engine/index.ts'
+import { chapterFinale } from './chapter-finale.ts'
 
 export interface ChapterLevel {
   readonly number: string
@@ -135,4 +136,5 @@ export const chapterOne: readonly ChapterLevel[] = [
       '##############',
     ]),
   },
+  chapterFinale,
 ]

@@ -21,4 +21,11 @@ export const chapterOneSolutions = [
     'rrddrddddluruuururrlddddllluruuldurrurrrdddldllluulddrrrurrrdrrr',
     'rrddrddddluruuururrldlldldrddluruuururrrdddldllluulddrrrurrrdrrr',
   ],
+  [
+    'rrrrddddllluluurrrurdddddldrrrurdddldrrrrdruuuuuruuullllddrluuurrddrrrrdllldddlllurrllluurrduluuurrrdddddddldrrrrrlluuulluuurrrrddddrrdddlluuuddrrdruudrrr',
+    'rrrrdddrrrrdrluulllldllluluurrrurdddddldrrrurdddldrrrrdruuuuuruulldrrrrdllldddlllurrllluurrduluuurrrdddddddldrrrrrrrdruudllllluuulluuurrrrddddrddluurrdrdrrr',
+  ],
 ] as const
+
+// 05 intentionally seals the final room early, then reopens the bridge without undo.
+export const chapterFinaleRecovery = 'rrrrddddllluluurrrurdddddldrrrurdddldrrrrdruuuuuruuullllddrluuurrddrrrrdllldddlllurrllluurrduluuurrrrrrddrddddrddluuuuddddlluullllluluuuuurrrrdddddddldrrrrrlluuulluuurrrrddddrrdddlluuuddrrdruudrrr'
