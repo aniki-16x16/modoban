@@ -9,7 +9,53 @@ import './style.css'
 
 const tile = 64
 const circuitColors = ['#b17c28', '#7a6aa6', '#357f86', '#b45965']
-const circuitNumber = (id: string) => id.charCodeAt(0) - 64
+// Colors follow connected controls, independent of the names assigned to doors.
+function circuitPalette(level: LevelDefinition) {
+  const groups: Set<string>[] = []
+  for (const door of level.doors) {
+    const group = new Set([`door:${door.id}`, ...door.inputs.map(input => `${input.kind}:${input.id}`)])
+    for (let i = groups.length - 1; i >= 0; i -= 1) {
+      if ([...groups[i]].some(key => group.has(key))) {
+        for (const key of groups[i]) group.add(key)
+        groups.splice(i, 1)
+      }
+    }
+    groups.push(group)
+  }
+  for (const mechanism of level.mechanisms) {
+    const key = `${mechanism.kind}:${mechanism.id}`
+    if (!groups.some(group => group.has(key))) groups.push(new Set([key]))
+  }
+  const colors = new Map<string, string>()
+  groups.sort((a, b) => [...a].sort()[0].localeCompare([...b].sort()[0]))
+  groups.forEach((group, index) => {
+    const color = circuitColors[index] ?? `hsl(${index * 137.508 % 360} 45% 45%)`
+    group.forEach(key => colors.set(key, color))
+  })
+  return (kind: string, id: string) => colors.get(`${kind}:${id}`) ?? circuitColors[0]
+}
+
+function PressureButton({ color, active = false }: { color: string; active?: boolean }) {
+  return <g>
+    <circle cy="3" r="26" fill="#374738" opacity=".14" />
+    <circle cy="1" r="25" fill="#d5cebc" stroke={color} strokeWidth="1.5" />
+    <circle cy="2" r="21" fill={color} />
+    <circle cy="2" r="21" fill="#182d27" opacity=".25" />
+    <g transform={`translate(0, ${active ? 1 : -5})`}>
+      <circle r="21" fill={color} />
+      <circle r="20" fill="none" stroke="#fff9e8" strokeOpacity={active ? .25 : .55} />
+      <path d="M-15-9a17 17 0 0 1 30 0" fill="none" stroke="#fff9e8" strokeOpacity={active ? .15 : .5} strokeWidth="2" strokeLinecap="round" />
+    </g>
+  </g>
+}
+
+function Gate({ color, extension, direction }: { color: string; extension: number; direction: Direction }) {
+  const rotation = { down: 0, left: 90, up: 180, right: 270 }[direction]
+  return <g transform={`rotate(${rotation}, 32, 32)`}>
+    {extension > 0 && <rect x="8" y="0" width="48" height={extension * tile} fill={color} fillOpacity=".35" />}
+    <rect x="8" y="0" width="48" height="3" rx="1" fill={color} />
+  </g>
+}
 const directionKeys: Record<string, Direction> = {
   ArrowUp: 'up', ArrowRight: 'right', ArrowDown: 'down', ArrowLeft: 'left',
   w: 'up', d: 'right', s: 'down', a: 'left',
@@ -23,6 +69,7 @@ function Arrow({ direction = 'right' }: { direction?: Direction }) {
 }
 
 function Board({ level, frame, exitDirection = 'right' }: { level: LevelDefinition; frame: PlaybackFrame; exitDirection?: Direction }) {
+  const colorFor = circuitPalette(level)
   const walls = new Set(level.walls.map(p => `${p.x},${p.y}`))
   const floors = []
   for (let y = 0; y < level.height; y += 1) {
@@ -30,7 +77,7 @@ function Board({ level, frame, exitDirection = 'right' }: { level: LevelDefiniti
       if (!walls.has(`${x},${y}`)) floors.push(<rect key={`${x},${y}`} x={x * tile + 1} y={y * tile + 1} width={62} height={62} rx={3} className="floor-tile" />)
     }
   }
-  return <svg className="board" viewBox={`0 0 ${level.width * tile} ${level.height * tile}`} role="img" aria-label={`关卡地图，${level.width}列${level.height}行。圆形是角色，木箱可推动，数字圆盘是压板，同号栅门是它控制的门，箭头是出口。`}>
+  return <svg className="board" viewBox={`0 0 ${level.width * tile} ${level.height * tile}`} role="img" aria-label={`关卡地图，${level.width}列${level.height}行。圆形是角色，木箱可推动，凸起的圆形按钮是压力板，同色半透明矩形是它控制的门，箭头是出口。`}>
     <defs>
       <pattern id="wall-pattern" width="16" height="16" patternUnits="userSpaceOnUse">
         <path d="m0 16 16-16M-4 4 4-4m8 24 8-8" stroke="#fff" strokeOpacity=".035" strokeWidth="1" />
@@ -45,31 +92,19 @@ function Board({ level, frame, exitDirection = 'right' }: { level: LevelDefiniti
     <g transform={`translate(${level.exit.x * tile}, ${level.exit.y * tile})`}>
       <rect x="8" y="8" width="48" height="48" rx="10" fill="#d4e5d2" />
       <path d="M20 32h24m-9-9 9 9-9 9" transform={`rotate(${{ right: 0, down: 90, left: 180, up: 270 }[exitDirection]},32,32)`} fill="none" stroke="#4f7852" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      <text x="32" y="61" textAnchor="middle" fontSize="8" fill="#486749" letterSpacing="2">出口</text>
     </g>
     {level.mechanisms.map(plate => {
       const active = frame.state.pressures.find(item => item.id === plate.id)?.active
-      const color = circuitColors[circuitNumber(plate.id) - 1]
+      const color = colorFor(plate.kind, plate.id)
       return <g key={plate.id} transform={`translate(${plate.position.x * tile + 32}, ${plate.position.y * tile + 32})`}>
-        <circle r="24" fill={active ? color : '#e8ddc8'} stroke={color} strokeWidth="2" />
-        <circle r="19" fill="none" stroke={active ? '#fff' : color} strokeWidth="1" opacity=".4" />
-        <text textAnchor="middle" dominantBaseline="central" fontSize="20" fontWeight="600" fill={active ? '#fffaf0' : color}>{circuitNumber(plate.id)}</text>
-        {active && <circle r="28" fill="none" stroke={color} strokeWidth="1" opacity=".35" />}
+        <PressureButton color={color} active={active} />
       </g>
     })}
     {level.doors.map(door => {
       const motion = frame.doors.find(item => item.doorId === door.id)
       const extension = motion?.extension ?? Number(frame.state.doors.find(item => item.id === door.id)?.extended)
-      const color = circuitColors[circuitNumber(door.id) - 1]
       return <g key={door.id} transform={`translate(${door.position.x * tile}, ${door.position.y * tile})`}>
-        <rect x="6" y="7" width="52" height="50" rx="5" fill={color} opacity=".09" stroke={color} strokeDasharray="3 4" />
-        <rect x="5" y="3" width="54" height="7" rx="3" fill={color} />
-        <g opacity={Math.min(1, extension * 2)}>
-          {[13, 25, 37, 49].map(x => <rect key={x} x={x - 3} y="8" width="6" height={Math.max(0, extension * 45)} rx="2" fill={color} />)}
-          <rect x="9" y={5 + extension * 44} width="46" height="6" rx="2" fill={color} />
-        </g>
-        <circle cx="51" cy="13" r="10" fill={color} stroke="#f7edda" strokeWidth="1.5" />
-        <text x="51" y="13" textAnchor="middle" dominantBaseline="central" fontSize="12" fontWeight="700" fill="#fffaf0">{circuitNumber(door.id)}</text>
+        <Gate color={colorFor('door', door.id)} extension={extension} direction={door.direction} />
       </g>
     })}
     {frame.state.entities.map(entity => {
@@ -92,8 +127,7 @@ function Board({ level, frame, exitDirection = 'right' }: { level: LevelDefiniti
           <rect x="-17" y="-18" width="34" height="33" rx="2" fill="none" stroke="#e9c28a" strokeWidth="2" />
         </>}
         {plate && <g transform="translate(19, 19)">
-          <circle r="10" fill={circuitColors[circuitNumber(plate.id) - 1]} stroke="#fff7e8" strokeWidth="1.5" />
-          <text textAnchor="middle" dominantBaseline="central" fontSize="12" fontWeight="700" fill="white">{circuitNumber(plate.id)}</text>
+          <circle r="10" fill={colorFor(plate.kind, plate.id)} stroke="#fff7e8" strokeWidth="1.5" />
         </g>}
       </g>
     })}
@@ -101,6 +135,7 @@ function Board({ level, frame, exitDirection = 'right' }: { level: LevelDefiniti
 }
 
 function LevelPreview({ level, exitDirection = 'right' }: { level: LevelDefinition; exitDirection?: Direction }) {
+  const colorFor = circuitPalette(level)
   const walls = new Set(level.walls.map(position => `${position.x},${position.y}`))
   return <svg className="level-preview" viewBox={`-1 -1 ${level.width + 2} ${level.height + 2}`} fill="none" aria-hidden="true">
     {Array.from({ length: level.width * level.height }, (_, index) => {
@@ -108,8 +143,12 @@ function LevelPreview({ level, exitDirection = 'right' }: { level: LevelDefiniti
       const y = Math.floor(index / level.width)
       return walls.has(`${x},${y}`) ? null : <rect key={index} x={x + .04} y={y + .04} width=".92" height=".92" rx=".1" fill="#dce1cf" stroke="#cdd5bf" strokeWidth=".025" />
     })}
-    {level.mechanisms.map(plate => <circle key={plate.id} cx={plate.position.x + .5} cy={plate.position.y + .5} r=".3" stroke={circuitColors[circuitNumber(plate.id) - 1]} strokeWidth=".07" />)}
-    {level.doors.map(door => <path key={door.id} className="preview-gate" d={`M${door.position.x + .2} ${door.position.y + .2}h.6m-.5 0v.6m.2-.6v.6m.2-.6v.6`} stroke={circuitColors[circuitNumber(door.id) - 1]} strokeWidth=".07" strokeLinecap="round" />)}
+    {level.mechanisms.map(plate => <g key={plate.id} transform={`translate(${plate.position.x + .5}, ${plate.position.y + .5}) scale(${1 / tile})`}>
+      <PressureButton color={colorFor(plate.kind, plate.id)} />
+    </g>)}
+    {level.doors.map(door => <g key={door.id} transform={`translate(${door.position.x}, ${door.position.y}) scale(${1 / tile})`}>
+      <Gate color={colorFor('door', door.id)} extension={Number(door.initialExtended)} direction={door.direction} />
+    </g>)}
     {level.entities.map(entity => entity.kind === 'player'
       ? <g className="preview-player" key={entity.id} style={{ transformOrigin: `${entity.position.x + .5}px ${entity.position.y + .5}px` }}>
         <circle cx={entity.position.x + .5} cy={entity.position.y + .5} r=".32" fill="#df7955" />
