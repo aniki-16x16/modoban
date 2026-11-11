@@ -13,7 +13,7 @@ const point = (x: number, y: number) => ({ x, y })
 const player = (x = 0, y = 0): EntityDefinition => ({ id: 'player', kind: 'player', position: point(x, y) })
 const box = (id: string, x: number, y: number, kind: 'box' | 'stone' = 'box'): EntityDefinition => ({ id, kind, position: point(x, y) })
 const conveyor = (id: string, beltId: string, x: number, y: number, direction: Direction = 'right'): MechanismDefinition => ({ id, kind: 'conveyor', beltId, position: point(x, y), direction })
-const hot = { id: 'hot', initialPhase: 0, signals: [true] }
+const hot = { id: 'hot', position: point(7, 0), initialPhase: 0, signals: [true] }
 const axisInput = [{ kind: 'axis' as const, id: 'hot' }]
 
 function door(id: string, x: number, y: number, direction: Direction = 'right', inputs = axisInput, initialExtended = false): DoorDefinition {
@@ -41,7 +41,7 @@ function move(engine: GameEngine, direction: Direction = 'down'): TurnTrace {
 }
 
 function assertInvariants(engine: GameEngine, state = engine.state) {
-  const occupied = new Set<string>()
+  const occupied = new Set(engine.level.axes.map(axis => `${axis.position.x},${axis.position.y}`))
   for (const item of state.entities) {
     if (!item.position) {
       assert.equal(item.conveyorId, null)
@@ -197,7 +197,7 @@ test('a blocked belt retries after a door retracts without consuming eligibility
 
 test('reverse movement on a belt is a valid turn even when the player returns to the starting cell', () => {
   const engine = new GameEngine(level({
-    entities: [player(2, 2)], axes: [{ id: 'cycle', initialPhase: 0, signals: [false, true] }],
+    entities: [player(2, 2)], axes: [{ id: 'cycle', position: point(7, 1), initialPhase: 0, signals: [false, true] }],
     mechanisms: [conveyor('one', 'A', 1, 2), conveyor('two', 'A', 2, 2)],
   }))
   move(engine, 'left')
@@ -342,7 +342,7 @@ test('a door without inputs retains its initial state', () => {
 test('pushing stone into a slot stops the clock before this turn advances', () => {
   const engine = new GameEngine(level({
     entities: [player(1, 0), box('stone', 1, 1, 'stone')],
-    axes: [{ id: 'cycle', initialPhase: 0, signals: [false, true] }],
+    axes: [{ id: 'cycle', position: point(2, 2), initialPhase: 0, signals: [false, true] }],
     mechanisms: [{ id: 'slot', kind: 'slot', position: point(1, 2), axisId: 'cycle' }],
   }))
   move(engine)
@@ -353,17 +353,17 @@ test('pushing stone into a slot stops the clock before this turn advances', () =
 
 test('player does not lock a slot; any box or stone in multiple slots locks their shared axis', () => {
   const engine = new GameEngine(level({
-    entities: [player(0, 0), box('box', 2, 2)],
-    axes: [{ id: 'cycle', initialPhase: 0, signals: [false, true] }],
+    entities: [player(0, 0), box('box', 1, 2)],
+    axes: [{ id: 'cycle', position: point(1, 1), initialPhase: 0, signals: [false, true] }],
     mechanisms: [
       { id: 'first', kind: 'slot', position: point(0, 1), axisId: 'cycle' },
-      { id: 'second', kind: 'slot', position: point(2, 2), axisId: 'cycle' },
+      { id: 'second', kind: 'slot', position: point(1, 2), axisId: 'cycle' },
     ],
   }))
   move(engine)
   assert.equal(engine.state.axes[0].locked, true)
   const onlyPlayer = new GameEngine(level({
-    axes: [{ id: 'cycle', initialPhase: 0, signals: [false, true] }],
+    axes: [{ id: 'cycle', position: point(1, 1), initialPhase: 0, signals: [false, true] }],
     mechanisms: [{ id: 'slot', kind: 'slot', position: point(0, 1), axisId: 'cycle' }],
   }))
   move(onlyPlayer)
@@ -373,7 +373,7 @@ test('player does not lock a slot; any box or stone in multiple slots locks thei
 
 test('destroying a slot occupant releases its axis; covering the slot with a door does not lock it', () => {
   const engine = new GameEngine(level({
-    axes: [hot, { id: 'cycle', initialPhase: 0, signals: [false, true] }],
+    axes: [hot, { id: 'cycle', position: point(1, 3), initialPhase: 0, signals: [false, true] }],
     entities: [player(), box('box', 1, 2), box('stone', 2, 2, 'stone')],
     walls: [point(3, 2)], mechanisms: [{ id: 'slot', kind: 'slot', position: point(1, 2), axisId: 'cycle' }],
     doors: [door('door', 1, 2)],
@@ -514,7 +514,7 @@ test('eased door displacement stays synchronized with its pushed entity', () => 
 
 test('derived AND targets wait for inputs that changed before the target became active', () => {
   const engine = new GameEngine(level({
-    axes: [{ id: 'cycle', initialPhase: 0, signals: [false, true] }],
+    axes: [{ id: 'cycle', position: point(7, 1), initialPhase: 0, signals: [false, true] }],
     mechanisms: [{ id: 'plate', kind: 'pressure', position: point(0, 1) }],
     doors: [{ id: 'door', position: point(4, 2), direction: 'right', initialExtended: false,
       inputs: [{ kind: 'pressure', id: 'plate' }, { kind: 'axis', id: 'cycle' }] }],
@@ -529,13 +529,13 @@ test('derived AND targets wait for inputs that changed before the target became 
 
 test('slot occupancy changes sharing one axis remain ordered even if the first leaves its lock unchanged', () => {
   const engine = new GameEngine(level({
-    axes: [hot, { id: 'cycle', initialPhase: 0, signals: [false, true] }],
+    axes: [hot, { id: 'cycle', position: point(3, 2), initialPhase: 0, signals: [false, true] }],
     entities: [player(), box('one', 2, 2), box('two', 4, 2)],
     mechanisms: [
       { id: 'first', kind: 'slot', position: point(2, 2), axisId: 'cycle' },
       { id: 'second', kind: 'slot', position: point(4, 2), axisId: 'cycle' },
     ],
-    doors: [door('one', 2, 2), door('two', 4, 2, 'up')],
+    doors: [door('one', 2, 2, 'down'), door('two', 4, 2, 'up')],
   }))
   const animation = createAnimationPlan(move(engine))
   const doors = animation.clips.filter(clip => clip.action.kind === 'door')
@@ -617,7 +617,7 @@ test('level validation rejects malformed data, invalid references and overlappin
     level({ mechanisms: [conveyor('one', 'A', 1, 1), conveyor('two', 'B', 1, 1)] }),
     level({ mechanisms: [conveyor('one', 'A', 7, 5)] }),
     level({ mechanisms: [{ id: 'slot', kind: 'slot', position: point(2, 2), axisId: 'missing' }] }),
-    level({ axes: [{ id: 'bad', initialPhase: 1, signals: [false] }] }),
+    level({ axes: [{ id: 'bad', position: point(7, 1), initialPhase: 1, signals: [false] }] }),
     level({ doors: [door('bad', 0, 0, 'left', [], true)] }),
     level({ doors: [door('unknown', 2, 2)] }),
     level({ axes: [hot], doors: [door('one', 2, 2, 'left', [], true), door('two', 2, 2, 'right', [], true)] }),
@@ -634,6 +634,59 @@ test('level definitions are detached from caller objects and retain memory order
   move(engine)
   assert.equal(engine.state.doors[0].extended, true)
   assert.equal(engine.state.doors[1].extended, false)
+})
+
+test('cycle bases block walking, pushing, and conveying without changing their position', () => {
+  const axis = (x: number, y: number) => ({ id: 'cycle', position: point(x, y), initialPhase: 0, signals: [false, true] })
+  const walking = new GameEngine(level({ axes: [axis(1, 0)] }))
+  const initial = walking.state
+  assert.equal(walking.move('right').accepted, false)
+  assert.strictEqual(walking.state, initial)
+  move(walking)
+  assert.equal(walking.state.axes[0].phase, 1)
+  assert.deepEqual(walking.level.axes[0].position, point(1, 0))
+
+  const pushing = new GameEngine(level({ axes: [axis(2, 1)], entities: [player(0, 1), box('box', 1, 1)] }))
+  assert.equal(pushing.move('right').accepted, false)
+  assert.deepEqual(entity(pushing.state, 'box').position, point(1, 1))
+
+  const conveying = new GameEngine(level({ axes: [axis(2, 2)], entities: [player(), box('box', 1, 2)], mechanisms: [conveyor('belt', 'A', 1, 2)] }))
+  move(conveying)
+  assert.deepEqual(entity(conveying.state, 'box').position, point(1, 2))
+  assertInvariants(conveying)
+})
+
+test('a cycle base is a fixed obstacle to a door pushing a box', () => {
+  const engine = new GameEngine(level({
+    axes: [{ ...hot, position: point(3, 2) }], entities: [player(), box('box', 2, 2)], doors: [door('pusher', 2, 2)],
+  }))
+  move(engine)
+  assert.equal(entity(engine.state, 'box').position, null)
+  assert.deepEqual(engine.level.axes[0].position, point(3, 2))
+  assert.equal(engine.state.doors[0].extended, true)
+  assertInvariants(engine)
+  assert.ok(engine.undo())
+  assert.deepEqual(entity(engine.state, 'box').position, point(2, 2))
+})
+
+test('cycle bases require distinct free map cells and brake slots must be adjacent', () => {
+  const axis = { id: 'cycle', position: point(1, 1), initialPhase: 0, signals: [false, true, false, true] }
+  const valid = level({ axes: [axis] })
+  const cases: unknown[] = [
+    { ...valid, axes: [{ id: 'cycle', initialPhase: 0, signals: [true] }] },
+    { ...valid, axes: [{ ...axis, position: point(8, 1) }] },
+    { ...valid, axes: [axis, { ...axis, id: 'second' }] },
+    { ...valid, walls: [point(1, 1)] },
+    { ...valid, exit: point(1, 1) },
+    { ...valid, entities: [player(1, 1)] },
+    { ...valid, doors: [door('door', 1, 1, 'right', [], false)] },
+    { ...valid, mechanisms: [{ id: 'plate', kind: 'pressure', position: point(1, 1) }] },
+    { ...valid, mechanisms: [{ id: 'slot', kind: 'slot', position: point(2, 2), axisId: 'cycle' }] },
+    { ...valid, mechanisms: [{ id: 'slot', kind: 'slot', position: point(4, 1), axisId: 'cycle' }] },
+  ]
+  for (const value of cases) assert.throws(() => parseLevel(value), LevelValidationError)
+  const parsed = parseLevel({ ...valid, mechanisms: [{ id: 'slot', kind: 'slot', position: point(2, 1), axisId: 'cycle' }] })
+  assert.deepEqual(parsed.axes[0].signals, axis.signals, 'Every phase retains its independently configured output')
 })
 
 test('long chains have no fixed animation cap and buffered input can shorten their presentation', () => {
@@ -681,7 +734,7 @@ test('generated small boards preserve occupancy, deterministic replay and animat
     }
     const available: Position[] = []
     for (let y = 0; y < 5; y += 1) {
-      for (let x = 0; x < 6; x += 1) if (x !== 5 || y !== 4) available.push(point(x, y))
+      for (let x = 0; x < 6; x += 1) if (x !== 5 || (y !== 4 && y !== 2)) available.push(point(x, y))
     }
     const ground = () => available.splice(random(available.length), 1)[0]
     const mechanisms: MechanismDefinition[] = []
@@ -690,15 +743,15 @@ test('generated small boards preserve occupancy, deterministic replay and animat
       mechanisms.push(conveyor(`conveyor-${index}`, `belt-${index % 2}`, position.x, position.y, directions[random(4)]))
     }
     mechanisms.push({ id: 'plate', kind: 'pressure', position: ground() })
-    mechanisms.push({ id: 'slot', kind: 'slot', position: ground(), axisId: 'cycle' })
+    mechanisms.push({ id: 'slot', kind: 'slot', position: point(5, 2), axisId: 'cycle' })
     const doors = []
     for (let index = 0; index < 3; index += 1) {
       const position = point(random(6), random(5))
       doors.push(door(`door-${index}`, position.x, position.y, directions[random(4)]))
     }
     const definition = level({
-      width: 6, height: 5, exit: point(5, 4), entities, mechanisms, doors,
-      axes: [hot, { id: 'cycle', initialPhase: random(3), signals: [false, true, false] }],
+      width: 7, height: 5, exit: point(5, 4), entities, mechanisms, doors,
+      axes: [{ ...hot, position: point(6, 0) }, { id: 'cycle', position: point(6, 2), initialPhase: random(3), signals: [false, true, false] }],
     })
     const engine = new GameEngine(definition)
     for (let step = 0; step < 12; step += 1) {

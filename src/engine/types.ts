@@ -37,6 +37,7 @@ export type MechanismDefinition = ConveyorDefinition | PressureDefinition | Slot
 
 export interface AxisDefinition {
   readonly id: string
+  readonly position: Position
   readonly initialPhase: number
   readonly signals: readonly boolean[]
 }

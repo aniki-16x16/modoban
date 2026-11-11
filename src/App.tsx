@@ -1,40 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent } from 'react'
 import { GameController } from './engine/index.ts'
-import type { Direction, LevelDefinition, PlaybackFrame } from './engine/index.ts'
-import { chapterOne } from './levels/chapter-one.ts'
-import type { ChapterLevel } from './levels/chapter-one.ts'
+import type { AxisDefinition, Direction, LevelDefinition, PlaybackFrame } from './engine/index.ts'
+import { allLevels, chapters } from './levels/index.ts'
+import type { Chapter, ChapterLevel } from './levels/index.ts'
 import { defaultMotionSettings, playerScale } from './motion.ts'
+import { circuitPalette } from './circuits.ts'
 import './style.css'
 
 const tile = 64
-const circuitColors = ['#b17c28', '#7a6aa6', '#357f86', '#b45965', '#57884d', '#4f83b5', '#c56b32']
-// Colors follow connected controls, independent of the names assigned to doors.
-function circuitPalette(level: LevelDefinition) {
-  const groups: Set<string>[] = []
-  for (const door of level.doors) {
-    const group = new Set([`door:${door.id}`, ...door.inputs.map(input => `${input.kind}:${input.id}`)])
-    for (let i = groups.length - 1; i >= 0; i -= 1) {
-      if ([...groups[i]].some(key => group.has(key))) {
-        for (const key of groups[i]) group.add(key)
-        groups.splice(i, 1)
-      }
-    }
-    groups.push(group)
-  }
-  for (const mechanism of level.mechanisms) {
-    const key = `${mechanism.kind}:${mechanism.id}`
-    if (!groups.some(group => group.has(key))) groups.push(new Set([key]))
-  }
-  const colors = new Map<string, string>()
-  groups.sort((a, b) => [...a].sort()[0].localeCompare([...b].sort()[0]))
-  groups.forEach((group, index) => {
-    const color = circuitColors[index] ?? `hsl(${index * 137.508 % 360} 45% 45%)`
-    group.forEach(key => colors.set(key, color))
-  })
-  return (kind: string, id: string) => colors.get(`${kind}:${id}`) ?? circuitColors[0]
-}
-
 function PressureButton({ color, active = false }: { color: string; active?: boolean }) {
   return <g>
     <circle cy="3" r="26" fill="#374738" opacity=".14" />
@@ -46,6 +20,38 @@ function PressureButton({ color, active = false }: { color: string; active?: boo
       <circle r="20" fill="none" stroke="#fff9e8" strokeOpacity={active ? .25 : .55} />
       <path d="M-15-9a17 17 0 0 1 30 0" fill="none" stroke="#fff9e8" strokeOpacity={active ? .15 : .5} strokeWidth="2" strokeLinecap="round" />
     </g>
+  </g>
+}
+
+function CycleBase({ axis, phase, locked, color }: { axis: AxisDefinition; phase: number; locked: boolean; color: string }) {
+  return <g className="cycle-base" role="img" aria-label={`${axis.signals.length}拍周期轴，当前第${phase + 1}拍，输出${axis.signals[phase] ? '真' : '假'}，${locked ? '已制动' : '运转'}`}>
+    <rect x="5" y="9" width="54" height="50" rx="9" fill="#172d25" opacity=".35" />
+    <rect x="5" y="3" width="54" height="51" rx="9" fill={color} stroke="#eee4cb" strokeWidth="1.5" />
+    <rect x="8" y="6" width="48" height="45" rx="7" fill="#243c31" stroke={color} strokeWidth="1.5" />
+    {[12, 52].flatMap(x => [10, 47].map(y => <circle key={`${x},${y}`} cx={x} cy={y} r="1.4" fill="#c4c9b5" />))}
+    <g transform="translate(32, 28)">
+      <circle r="20" fill="#1e342b" stroke={color} strokeWidth="1.5" />
+      {axis.signals.map((signal, index) => {
+        const angle = index / axis.signals.length * Math.PI * 2 - Math.PI / 2
+        const x = Math.cos(angle) * 14
+        const y = Math.sin(angle) * 14
+        return <g key={index}>
+          {index === phase && <path d={`M0 0L${x} ${y}`} stroke="#f6f1df" strokeWidth="2" />}
+          <circle cx={x} cy={y} r="3.2" fill={signal ? color : '#1e342b'} stroke={color} strokeWidth="1.5" />
+          {index === phase && <circle cx={x} cy={y} r="5.6" fill="none" stroke="#f6f1df" strokeWidth="1.5" />}
+        </g>
+      })}
+      <circle r="4" fill={color} stroke="#f6f1df" />
+      {locked && <path d="M-5-6v12M5-6v12" stroke="#f6f1df" strokeWidth="3" />}
+    </g>
+  </g>
+}
+
+function BrakeSlot({ color }: { color: string }) {
+  return <g>
+    <rect x="-25" y="-25" width="50" height="50" rx="6" fill="#b7b49f" stroke={color} strokeWidth="2" />
+    <rect x="-20" y="-20" width="40" height="40" rx="3" fill="#334238" />
+    <path d="M-24-12h9m-9 12h9m-9 12h9m39-24h-9m9 12h-9m9 12h-9" stroke={color} strokeWidth="4" />
   </g>
 }
 
@@ -77,7 +83,8 @@ function Board({ level, frame, exitDirection = 'right' }: { level: LevelDefiniti
       if (!walls.has(`${x},${y}`)) floors.push(<rect key={`${x},${y}`} x={x * tile + 1} y={y * tile + 1} width={62} height={62} rx={3} className="floor-tile" />)
     }
   }
-  return <svg className="board" viewBox={`0 0 ${level.width * tile} ${level.height * tile}`} role="img" aria-label={`关卡地图，${level.width}列${level.height}行。圆形是角色，木箱可推动，凸起的圆形按钮是压力板，同色半透明矩形是它控制的门，箭头是出口。`}>
+  const cycleDescription = level.axes.map(axis => `${axis.signals.length}拍周期，当前第${(frame.state.axes.find(state => state.id === axis.id)?.phase ?? axis.initialPhase) + 1}拍。`).join('')
+  return <svg className="board" viewBox={`0 0 ${level.width * tile} ${level.height * tile}`} role="img" aria-label={`关卡地图，${level.width}列${level.height}行。圆形是角色，木箱可推动，凸起的圆形按钮是压力板，同色半透明矩形是它控制的门，箭头是出口。带方形底座的圆盘是不可通行的周期轴。${cycleDescription}`}>
     <defs>
       <pattern id="wall-pattern" width="16" height="16" patternUnits="userSpaceOnUse">
         <path d="m0 16 16-16M-4 4 4-4m8 24 8-8" stroke="#fff" strokeOpacity=".035" strokeWidth="1" />
@@ -93,11 +100,17 @@ function Board({ level, frame, exitDirection = 'right' }: { level: LevelDefiniti
       <rect x="8" y="8" width="48" height="48" rx="10" fill="#d4e5d2" />
       <path d="M20 32h24m-9-9 9 9-9 9" transform={`rotate(${{ right: 0, down: 90, left: 180, up: 270 }[exitDirection]},32,32)`} fill="none" stroke="#4f7852" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
     </g>
+    {level.axes.map(axis => {
+      const state = frame.state.axes.find(state => state.id === axis.id)!
+      return <g key={axis.id} transform={`translate(${axis.position.x * tile}, ${axis.position.y * tile})`}>
+        <CycleBase axis={axis} phase={state.phase} locked={state.locked} color={colorFor('axis', axis.id)} />
+      </g>
+    })}
     {level.mechanisms.map(plate => {
       const active = frame.state.pressures.find(item => item.id === plate.id)?.active
       const color = colorFor(plate.kind, plate.id)
       return <g key={plate.id} transform={`translate(${plate.position.x * tile + 32}, ${plate.position.y * tile + 32})`}>
-        <PressureButton color={color} active={active} />
+        {plate.kind === 'slot' ? <BrakeSlot color={color} /> : <PressureButton color={color} active={active} />}
       </g>
     })}
     {level.doors.map(door => {
@@ -143,8 +156,11 @@ function LevelPreview({ level, exitDirection = 'right' }: { level: LevelDefiniti
       const y = Math.floor(index / level.width)
       return walls.has(`${x},${y}`) ? null : <rect key={index} x={x + .04} y={y + .04} width=".92" height=".92" rx=".1" fill="#dce1cf" stroke="#cdd5bf" strokeWidth=".025" />
     })}
+    {level.axes.map(axis => <g key={axis.id} transform={`translate(${axis.position.x}, ${axis.position.y}) scale(${1 / tile})`}>
+      <CycleBase axis={axis} phase={axis.initialPhase} locked={false} color={colorFor('axis', axis.id)} />
+    </g>)}
     {level.mechanisms.map(plate => <g key={plate.id} transform={`translate(${plate.position.x + .5}, ${plate.position.y + .5}) scale(${1 / tile})`}>
-      <PressureButton color={colorFor(plate.kind, plate.id)} />
+      {plate.kind === 'slot' ? <BrakeSlot color={colorFor('slot', plate.id)} /> : <PressureButton color={colorFor(plate.kind, plate.id)} />}
     </g>)}
     {level.doors.map(door => <g key={door.id} transform={`translate(${door.position.x}, ${door.position.y}) scale(${1 / tile})`}>
       <Gate color={colorFor('door', door.id)} extension={Number(door.initialExtended)} direction={door.direction} />
@@ -163,17 +179,10 @@ function LevelPreview({ level, exitDirection = 'right' }: { level: LevelDefiniti
   </svg>
 }
 
-function LevelSelect({ completed, returnLevel }: { completed: readonly string[]; returnLevel: string | null }) {
-  const selectionRef = useRef<HTMLElement>(null)
+function ChapterSection({ chapter, completed }: { chapter: Chapter; completed: readonly string[] }) {
   const dragRef = useRef<{ pointerId: number; startX: number; scrollLeft: number; dragging: boolean } | null>(null)
   const suppressClickRef = useRef(false)
   const [dragging, setDragging] = useState(false)
-  useEffect(() => {
-    if (!returnLevel) return
-    const card = selectionRef.current?.querySelector<HTMLAnchorElement>(`a[href="#play/${returnLevel}"]`)
-    card?.focus({ preventScroll: true })
-    card?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
-  }, [returnLevel])
 
   const finishDrag = (event: PointerEvent<HTMLElement>) => {
     if (dragRef.current?.pointerId !== event.pointerId) return
@@ -182,63 +191,75 @@ function LevelSelect({ completed, returnLevel }: { completed: readonly string[];
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
   }
 
+  return <section className="chapter" aria-labelledby={`chapter-${chapter.number}`}>
+    <div className="chapter-heading">
+      <span className="chapter-index">{chapter.number}</span>
+      <h2 id={`chapter-${chapter.number}`}>{chapter.title}</h2>
+    </div>
+    <nav className={`level-list${dragging ? ' is-dragging' : ''}`} aria-label={`第${Number(chapter.number)}章关卡`}
+      onPointerDown={event => {
+        suppressClickRef.current = false
+        if (event.pointerType !== 'mouse' || event.button !== 0 || event.currentTarget.scrollWidth <= event.currentTarget.clientWidth) return
+        dragRef.current = { pointerId: event.pointerId, startX: event.clientX, scrollLeft: event.currentTarget.scrollLeft, dragging: false }
+      }}
+      onPointerMove={event => {
+        const drag = dragRef.current
+        if (!drag || drag.pointerId !== event.pointerId) return
+        const distance = event.clientX - drag.startX
+        if (!drag.dragging) {
+          if (Math.abs(distance) < 6) return
+          drag.dragging = true
+          suppressClickRef.current = true
+          event.currentTarget.setPointerCapture(event.pointerId)
+          setDragging(true)
+        }
+        event.preventDefault()
+        event.currentTarget.scrollLeft = drag.scrollLeft - distance
+      }}
+      onPointerUp={finishDrag}
+      onPointerCancel={finishDrag}
+      onLostPointerCapture={finishDrag}
+      onPointerLeave={event => { if (!dragRef.current?.dragging) finishDrag(event) }}
+      onDragStart={event => event.preventDefault()}
+      onClickCapture={event => {
+        if (!suppressClickRef.current || event.detail === 0) return
+        event.preventDefault()
+        event.stopPropagation()
+        suppressClickRef.current = false
+      }}>
+      {chapter.levels.map(level => {
+        const cleared = completed.includes(level.definition.id)
+        return <a key={level.definition.id} href={`#play/${level.definition.id}`} className={`level-card${cleared ? ' is-complete' : ''}`}>
+          <div className="level-art">
+            <span className="art-corner corner-top" />
+            <LevelPreview level={level.definition} exitDirection={level.exitDirection} />
+            <span className="art-corner corner-bottom" />
+          </div>
+          <div className="level-info">
+            <span className="level-number">{level.number}</span>
+            <h3>{level.title}</h3>
+            <span className="level-status">{cleared && <span aria-hidden="true">✓</span>}{cleared ? '已完成' : '未完成'}</span>
+          </div>
+        </a>
+      })}
+    </nav>
+  </section>
+}
+
+function LevelSelect({ completed, returnLevel }: { completed: readonly string[]; returnLevel: string | null }) {
+  const selectionRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (!returnLevel) return
+    const card = selectionRef.current?.querySelector<HTMLAnchorElement>(`a[href="#play/${returnLevel}"]`)
+    card?.focus({ preventScroll: true })
+    card?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
+  }, [returnLevel])
+
   return <main className="selection-page" ref={selectionRef}>
     <header className="selection-header">
       <h1 className="brand"><span className="brand-mark" aria-hidden="true"><i /><i /><i /><i /></span>modoban<span className="brand-dot">.</span></h1>
     </header>
-    <section className="chapter" aria-labelledby="chapter-title">
-      <div className="chapter-heading">
-        <span className="chapter-index">01</span>
-        <h2 id="chapter-title">压住与让路</h2>
-      </div>
-      <nav className={`level-list${dragging ? ' is-dragging' : ''}`} aria-label="第一章关卡"
-        onPointerDown={event => {
-          suppressClickRef.current = false
-          if (event.pointerType !== 'mouse' || event.button !== 0 || event.currentTarget.scrollWidth <= event.currentTarget.clientWidth) return
-          dragRef.current = { pointerId: event.pointerId, startX: event.clientX, scrollLeft: event.currentTarget.scrollLeft, dragging: false }
-        }}
-        onPointerMove={event => {
-          const drag = dragRef.current
-          if (!drag || drag.pointerId !== event.pointerId) return
-          const distance = event.clientX - drag.startX
-          if (!drag.dragging) {
-            if (Math.abs(distance) < 6) return
-            drag.dragging = true
-            suppressClickRef.current = true
-            event.currentTarget.setPointerCapture(event.pointerId)
-            setDragging(true)
-          }
-          event.preventDefault()
-          event.currentTarget.scrollLeft = drag.scrollLeft - distance
-        }}
-        onPointerUp={finishDrag}
-        onPointerCancel={finishDrag}
-        onLostPointerCapture={finishDrag}
-        onPointerLeave={event => { if (!dragRef.current?.dragging) finishDrag(event) }}
-        onDragStart={event => event.preventDefault()}
-        onClickCapture={event => {
-          if (!suppressClickRef.current || event.detail === 0) return
-          event.preventDefault()
-          event.stopPropagation()
-          suppressClickRef.current = false
-        }}>
-        {chapterOne.map(level => {
-          const cleared = completed.includes(level.definition.id)
-          return <a key={level.definition.id} href={`#play/${level.definition.id}`} className={`level-card${cleared ? ' is-complete' : ''}`}>
-            <div className="level-art">
-              <span className="art-corner corner-top" />
-              <LevelPreview level={level.definition} exitDirection={level.exitDirection} />
-              <span className="art-corner corner-bottom" />
-            </div>
-            <div className="level-info">
-              <span className="level-number">{level.number}</span>
-              <h3>{level.title}</h3>
-              <span className="level-status">{cleared && <span aria-hidden="true">✓</span>}{cleared ? '已完成' : '未完成'}</span>
-            </div>
-          </a>
-        })}
-      </nav>
-    </section>
+    {chapters.map(chapter => <ChapterSection key={chapter.number} chapter={chapter} completed={completed} />)}
   </main>
 }
 
@@ -371,7 +392,7 @@ function LevelGame({ puzzle, onComplete, onReturn, onNext }: {
 }
 
 function levelFromHash() {
-  return chapterOne.find(level => window.location.hash === `#play/${level.definition.id}`)
+  return allLevels.find(level => window.location.hash === `#play/${level.definition.id}`)
 }
 
 function App() {
@@ -395,7 +416,7 @@ function App() {
     document.title = puzzle ? `${puzzle.number} ${puzzle.title} · Modoban` : 'Modoban · 关卡选择'
   }, [puzzle])
 
-  const next = puzzle ? chapterOne[chapterOne.indexOf(puzzle) + 1] : undefined
+  const next = puzzle ? allLevels[allLevels.indexOf(puzzle) + 1] : undefined
   return puzzle
     ? <LevelGame key={puzzle.definition.id} puzzle={puzzle} onComplete={complete} onReturn={returnToLevels} onNext={next ? () => { window.location.hash = `play/${next.definition.id}` } : undefined} />
     : <LevelSelect completed={completed} returnLevel={returnLevel} />

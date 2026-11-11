@@ -11,7 +11,7 @@ const cellResource = (position: Position) => `cell:${cellKey(position)}`
 class World {
   readonly level: LevelDefinition
   readonly state: MutableState
-  readonly walls: Set<string>
+  readonly fixedCells: Set<string>
   readonly mechanisms: Map<string, LevelDefinition['mechanisms'][number]>
   readonly axes: Map<string, MutableState['axes'][number]>
   readonly doors: Map<string, MutableState['doors'][number]>
@@ -21,7 +21,7 @@ class World {
   constructor(level: LevelDefinition, state: GameState) {
     this.level = level
     this.state = copyState(state)
-    this.walls = new Set(level.walls.map(cellKey))
+    this.fixedCells = new Set([...level.walls, ...level.axes.map(axis => axis.position)].map(cellKey))
     this.mechanisms = new Map(level.mechanisms.map(item => [cellKey(item.position), item]))
     this.axes = new Map(this.state.axes.map(item => [item.id, item]))
     this.doors = new Map(this.state.doors.map(item => [item.id, item]))
@@ -67,7 +67,7 @@ class World {
 
   fixedAt(position: Position): boolean {
     return position.x < 0 || position.x >= this.level.width || position.y < 0 || position.y >= this.level.height
-      || this.walls.has(cellKey(position)) || this.doorsAt.has(cellKey(position))
+      || this.fixedCells.has(cellKey(position)) || this.doorsAt.has(cellKey(position))
   }
 
   shift(entity: MutableState['entities'][number], direction: Direction) {

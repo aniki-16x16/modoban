@@ -40,6 +40,7 @@ a { color: inherit; text-decoration: none; }
 .level-list::-webkit-scrollbar { display: none; }
 .level-list.is-dragging, .level-list.is-dragging .level-card { cursor: grabbing; }
 .level-card { position: relative; display: block; flex: 1 0 300px; min-width: 0; border: 1px solid #dce0d1; border-radius: 16px; background: #faf9f4; overflow: hidden; transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease; animation: card-enter .65s .12s ease backwards; }
+.level-card:only-child { flex-grow: 0; max-width: 360px; }
 .level-card:nth-child(2) { animation-delay: .22s; }
 .level-card:hover { transform: translateY(-5px); border-color: #aebc98; box-shadow: 0 14px 30px #3c503410; }
 .level-card:active { transform: translateY(-1px); }

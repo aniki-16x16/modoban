@@ -57,14 +57,19 @@ export function parseLevel(value: unknown): LevelDefinition {
   const walls = array(source.walls, 'walls').map((value, index) => position(value, `walls[${index}]`))
   const wallCells = new Set(walls.map(cellKey))
   requireCondition(wallCells.size === walls.length, 'walls contain duplicate cells')
+  const axisCells = new Set<string>()
   function floor(value: unknown, path: string): Position {
     const point = position(value, path)
     requireCondition(!wallCells.has(cellKey(point)), `${path} overlaps a wall`)
+    requireCondition(!axisCells.has(cellKey(point)), `${path} overlaps a cycle base`)
     return point
   }
 
   const exit = floor(source.exit, 'exit')
   const axes = identified(source.axes, 'axes').map(axis => {
+    const point = floor(axis.position, `axis ${axis.id}.position`)
+    requireCondition(cellKey(point) !== cellKey(exit), `axis ${axis.id} overlaps the exit`)
+    axisCells.add(cellKey(point))
     const signals = array(axis.signals, `axis ${axis.id}.signals`)
     requireCondition(signals.length > 0 && signals.every(signal => typeof signal === 'boolean'), `axis ${axis.id} needs boolean signals`)
     requireCondition(
@@ -73,7 +78,7 @@ export function parseLevel(value: unknown): LevelDefinition {
         && Number(axis.initialPhase) < signals.length,
       `axis ${axis.id} has invalid initialPhase`,
     )
-    return { id: axis.id as string, initialPhase: Number(axis.initialPhase), signals: signals as boolean[] }
+    return { id: axis.id as string, position: point, initialPhase: Number(axis.initialPhase), signals: signals as boolean[] }
   })
   const axisIds = new Set(axes.map(axis => axis.id))
   const mechanismCells = new Set([cellKey(exit)])
@@ -91,6 +96,10 @@ export function parseLevel(value: unknown): LevelDefinition {
         return { ...base, kind: 'conveyor' as const, beltId: item.beltId, direction: item.direction }
       case 'slot':
         requireCondition(typeof item.axisId === 'string' && axisIds.has(item.axisId), `slot ${item.id} references an unknown axis`)
+        {
+          const axis = axes.find(axis => axis.id === item.axisId)!
+          requireCondition(Math.abs(point.x - axis.position.x) + Math.abs(point.y - axis.position.y) === 1, `slot ${item.id} must be beside its cycle base`)
+        }
         return { ...base, kind: 'slot' as const, axisId: item.axisId }
       default:
         throw new LevelValidationError(`mechanism ${item.id} has invalid kind`)
