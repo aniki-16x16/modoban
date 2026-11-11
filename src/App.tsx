@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, PointerEvent } from 'react'
 import { GameController } from './engine/index.ts'
 import type { Direction, LevelDefinition, PlaybackFrame } from './engine/index.ts'
 import { chapterOne } from './levels/chapter-one.ts'
@@ -165,9 +165,22 @@ function LevelPreview({ level, exitDirection = 'right' }: { level: LevelDefiniti
 
 function LevelSelect({ completed, returnLevel }: { completed: readonly string[]; returnLevel: string | null }) {
   const selectionRef = useRef<HTMLElement>(null)
+  const dragRef = useRef<{ pointerId: number; startX: number; scrollLeft: number; dragging: boolean } | null>(null)
+  const suppressClickRef = useRef(false)
+  const [dragging, setDragging] = useState(false)
   useEffect(() => {
-    if (returnLevel) selectionRef.current?.querySelector<HTMLAnchorElement>(`a[href="#play/${returnLevel}"]`)?.focus({ preventScroll: true })
+    if (!returnLevel) return
+    const card = selectionRef.current?.querySelector<HTMLAnchorElement>(`a[href="#play/${returnLevel}"]`)
+    card?.focus({ preventScroll: true })
+    card?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
   }, [returnLevel])
+
+  const finishDrag = (event: PointerEvent<HTMLElement>) => {
+    if (dragRef.current?.pointerId !== event.pointerId) return
+    dragRef.current = null
+    setDragging(false)
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+  }
 
   return <main className="selection-page" ref={selectionRef}>
     <header className="selection-header">
@@ -175,15 +188,40 @@ function LevelSelect({ completed, returnLevel }: { completed: readonly string[];
     </header>
     <section className="chapter" aria-labelledby="chapter-title">
       <div className="chapter-heading">
-        <div>
-          <p className="eyebrow">CHAPTER 01 <span>压力板与伸缩门</span></p>
-          <h2 id="chapter-title">压住与让路<span className="heading-dot" aria-hidden="true">.</span></h2>
-          <p className="chapter-description">留住一个开关，给自己腾出一条路。</p>
-        </div>
-        <div className="chapter-index" aria-hidden="true">01</div>
+        <span className="chapter-index">01</span>
+        <h2 id="chapter-title">压住与让路</h2>
       </div>
-      <div className="chapter-meta"><span>第一章 <i /> {chapterOne.length.toString().padStart(2, '0')} 个关卡</span><span>{completed.length.toString().padStart(2, '0')} / {chapterOne.length.toString().padStart(2, '0')} 已完成</span></div>
-      <nav className="level-grid" aria-label="第一章关卡">
+      <nav className={`level-list${dragging ? ' is-dragging' : ''}`} aria-label="第一章关卡"
+        onPointerDown={event => {
+          suppressClickRef.current = false
+          if (event.pointerType !== 'mouse' || event.button !== 0 || event.currentTarget.scrollWidth <= event.currentTarget.clientWidth) return
+          dragRef.current = { pointerId: event.pointerId, startX: event.clientX, scrollLeft: event.currentTarget.scrollLeft, dragging: false }
+        }}
+        onPointerMove={event => {
+          const drag = dragRef.current
+          if (!drag || drag.pointerId !== event.pointerId) return
+          const distance = event.clientX - drag.startX
+          if (!drag.dragging) {
+            if (Math.abs(distance) < 6) return
+            drag.dragging = true
+            suppressClickRef.current = true
+            event.currentTarget.setPointerCapture(event.pointerId)
+            setDragging(true)
+          }
+          event.preventDefault()
+          event.currentTarget.scrollLeft = drag.scrollLeft - distance
+        }}
+        onPointerUp={finishDrag}
+        onPointerCancel={finishDrag}
+        onLostPointerCapture={finishDrag}
+        onPointerLeave={event => { if (!dragRef.current?.dragging) finishDrag(event) }}
+        onDragStart={event => event.preventDefault()}
+        onClickCapture={event => {
+          if (!suppressClickRef.current || event.detail === 0) return
+          event.preventDefault()
+          event.stopPropagation()
+          suppressClickRef.current = false
+        }}>
         {chapterOne.map(level => {
           const cleared = completed.includes(level.definition.id)
           return <a key={level.definition.id} href={`#play/${level.definition.id}`} className={`level-card${cleared ? ' is-complete' : ''}`}>
@@ -191,13 +229,11 @@ function LevelSelect({ completed, returnLevel }: { completed: readonly string[];
               <span className="art-corner corner-top" />
               <LevelPreview level={level.definition} exitDirection={level.exitDirection} />
               <span className="art-corner corner-bottom" />
-              <span className="art-number">{level.number}</span>
-              {cleared && <span className="completion-badge"><span aria-hidden="true">✓</span> 已完成</span>}
             </div>
             <div className="level-info">
-              <div className="level-card-heading"><span className="level-number">{level.number}</span><h3>{level.title}</h3><span className="level-enter" aria-label={cleared ? '重新游玩' : '开始游玩'}><Arrow /></span></div>
-              <p>{level.description}</p>
-              <div className="level-details"><span>{level.definition.entities.filter(entity => entity.kind === 'box').length} 只箱子</span><i /><span>{level.definition.mechanisms.length} 组机关</span></div>
+              <span className="level-number">{level.number}</span>
+              <h3>{level.title}</h3>
+              <span className="level-status">{cleared && <span aria-hidden="true">✓</span>}{cleared ? '已完成' : '未完成'}</span>
             </div>
           </a>
         })}
