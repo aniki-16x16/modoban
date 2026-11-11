@@ -3,7 +3,7 @@ import type { Direction } from '../../src/engine/index.ts'
 const directions: Record<string, Direction> = { u: 'up', r: 'right', d: 'down', l: 'left' }
 export const decode = (route: string): Direction[] => [...route].map(key => directions[key])
 
-// 01 varies crate assignments; 02 varies the replacement crate's staging pocket.
+// 01/03 vary assignments, 02 varies staging, 04 withdraws its control crate up or down.
 export const chapterOneSolutions = [
   [
     'dllurrdruuuluurdldrrrdrulurdllluulllddrrurddddrrrrdrr',
@@ -12,5 +12,13 @@ export const chapterOneSolutions = [
   [
     'uuruuurrrrddduuullllddlruulldddddldrrrrrrruuuudddddrruldluudlllllllll',
     'uuruuurrrrddduuullllddlruulldddddldrrrrrdrruuuuudddddllurdruudlllllllll',
+  ],
+  [
+    'luulurrrrrrrrlllllddlulurrrluurrrrrrrddllrrrrr',
+    'uulurrrrrrrllllldddlluulurrrrluurrrrrrrddllrrrrr',
+  ],
+  [
+    'rrddrddddluruuururrlddddllluruuldurrurrrdddldllluulddrrrurrrdrrr',
+    'rrddrddddluruuururrldlldldrddluruuururrrdddldllluulddrrrurrrdrrr',
   ],
 ] as const

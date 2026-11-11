@@ -32,7 +32,8 @@ function initialPushChoices(level: LevelDefinition, initial = new GameEngine(lev
   return choices
 }
 
-for (const [index, puzzle] of chapterOne.entries()) {
+// These three puzzles precede the gate-push lesson and must not require its mechanic.
+for (const [index, puzzle] of chapterOne.slice(0, 3).entries()) {
   test(`${puzzle.number} ${puzzle.title}: alternative plans win using only taught rules`, () => {
     const level = puzzle.definition
     assert.equal(level.axes.length, 0)
@@ -94,6 +95,10 @@ for (const [index, puzzle] of chapterOne.entries()) {
         assert.ok(bDoorStates.length >= 4)
         assert.equal(bDoorStates.at(-1), false, 'The return gate must reopen; walking across B can also create brief extra pulses')
       }
+      if (index === 2) {
+        assert.equal(engine.state.entities.find(item => item.kind === 'box' && same(item.position, c))!.id, firstHolder,
+          'The crate sent beyond C to A must return to C from the exit side')
+      }
       const last = decode(route).at(-1)!
       assert.equal(engine.undo(), true)
       engine.move(last)
@@ -103,11 +108,11 @@ for (const [index, puzzle] of chapterOne.entries()) {
       controller.reset()
       assert.deepEqual(controller.state, initial)
     }
-    if (index === 0) assert.equal(firstHolders.size, 2, '01 keeps both approved crate assignments')
-    else assert.deepEqual(relayParking, new Set(['9,8', '11,8']), '02 supports staging on either side of the shared stance')
+    if (index === 0 || index === 2) assert.equal(firstHolders.size, 2, 'Either crate can take the temporary switch assignment')
+    if (index === 1) assert.deepEqual(relayParking, new Set(['9,8', '11,8']), '02 supports staging on either side of the shared stance')
   })
 
-  if (index === 0) test(`${puzzle.number}: initial walking exposes several real crate choices`, () => {
+  if (index === 0 || index === 2) test(`${puzzle.number}: initial walking exposes several real crate choices`, () => {
     const choices = initialPushChoices(puzzle.definition)
     assert.ok(choices.size >= 4)
     assert.ok(new Set([...choices].map(choice => choice.split(':')[0])).size >= 2)
@@ -181,4 +186,27 @@ test('01: safely stepping on and off the plate demonstrates the rule before comm
   assert.equal(engine.state.doors.find(item => item.id === 'A')!.extended, true)
   assert.equal(engine.state.outcome.kind, 'playing')
   assert.deepEqual(engine.state.entities.filter(item => item.kind === 'box'), boxesBefore)
+})
+
+test('03: C must be filled from the exit side, even when all engine actions are available', () => {
+  const level = chapterOne[2].definition
+  const c = level.mechanisms.find(item => item.id === 'C')!.position
+  assert.equal(solve(level, (before, after) => !before.entities.some(entity => entity.kind === 'box'
+    && same(entity.position, { x: c.x + 1, y: c.y })
+    && same(after.entities.find(item => item.id === entity.id)!.position, c))), null,
+  'Forward deliveries alone must not solve the puzzle; at least one crate has to pass C and return from the right')
+})
+
+test('03: filling both exit switches from the entrance opens the doors but seals the player outside', () => {
+  const engine = new GameEngine(chapterOne[2].definition)
+  play(engine, 'luulurrrrrrlllddlulurrr')
+  for (const id of ['B', 'C']) {
+    assert.ok(boxAt(engine.state, engine.level.mechanisms.find(item => item.id === id)!.position))
+    assert.equal(engine.state.doors.find(item => item.id === id)!.extended, false)
+  }
+  assert.equal(engine.state.outcome.kind, 'playing')
+  assert.equal(solveFrom(engine.level, engine.state), null, 'Open exit doors do not resolve the blocked walking route')
+  while (engine.canUndo) engine.undo()
+  play(engine, chapterOneSolutions[2][0])
+  assert.equal(engine.state.outcome.kind, 'won')
 })
