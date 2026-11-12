@@ -1,4 +1,4 @@
-import { add, cross, dot, mul, sub, unit } from './math.ts'
+import { add, cross, mul, sub, unit } from './math.ts'
 import type { Vec3 } from './math.ts'
 export type Color = [number, number, number, number]
 export function color(hex: string, alpha = 1): Color {
@@ -51,9 +51,67 @@ export class Mesh {
       this.quad(point(a,radius-width/2),point(a,radius+width/2),point(b,radius+width/2),point(b,radius-width/2),tint)
     }
   }
-  data(back: Vec3) {
-    // Larger distance along camera back is nearer, so render the farthest first.
-    this.transparent.sort((a,b) => dot(a.center,back)-dot(b.center,back))
-    return { vertices: new Float32Array([...this.opaque, ...this.transparent.flatMap(t => t.vertices)]), opaqueCount: this.opaque.length / 11 }
+}
+
+/** A model stays immutable; only this small affine transform changes during playback. */
+export class ScenePart {
+  mesh: Mesh
+  readonly matrix = new Float32Array(16)
+  visible = false
+  seen = 0
+
+  constructor(mesh: Mesh) { this.mesh = mesh; this.transform(0,0,0) }
+
+  transform(x: number, y: number, z: number, sx = 1, sy = 1, sz = 1) {
+    this.matrix.fill(0)
+    this.matrix[0] = sx; this.matrix[5] = sy; this.matrix[10] = sz; this.matrix[15] = 1
+    this.matrix[12] = x; this.matrix[13] = y; this.matrix[14] = z
   }
+
+  box(lo: Vec3, hi: Vec3) { this.transform(...lo, hi[0]-lo[0], hi[1]-lo[1], hi[2]-lo[2]) }
+
+  line(a: Vec3, b: Vec3, width: number) {
+    const dx = b[0]-a[0], dy = b[1]-a[1], length = Math.hypot(dx,dy)
+    this.transform((a[0]+b[0])/2,(a[1]+b[1])/2,a[2])
+    this.matrix[0] = dx; this.matrix[1] = dy
+    this.matrix[4] = -dy/length*width; this.matrix[5] = dx/length*width
+  }
+}
+
+export class Scene {
+  readonly parts: ScenePart[] = []
+  private readonly models = new Map<string, Mesh>()
+  private readonly instances = new Map<string, ScenePart>()
+  private readonly groups = new Map<string, { version: string; parts: ScenePart[] }>()
+  private collecting: ScenePart[] | undefined
+  private generation = 0
+
+  begin() { this.generation++ }
+
+  use(id: string, model: string, build: (mesh: Mesh) => void): ScenePart {
+    let mesh = this.models.get(model)
+    if (!mesh) { mesh = new Mesh(); build(mesh); this.models.set(model,mesh) }
+    let part = this.instances.get(id)
+    if (!part) { part = new ScenePart(mesh); this.instances.set(id,part); this.parts.push(part) }
+    part.mesh = mesh; part.seen = this.generation
+    this.collecting?.push(part)
+    return part
+  }
+
+  retain(id: string, version: string, build: () => void) {
+    let group = this.groups.get(id)
+    if (group?.version === version) {
+      for (const part of group.parts) part.seen = this.generation
+    } else {
+      const outer = this.collecting, parts: ScenePart[] = []
+      this.collecting = parts
+      build()
+      this.collecting = outer
+      group = { version, parts: parts.filter(part=>part.seen===this.generation) }
+      this.groups.set(id,group)
+    }
+    if (this.collecting) for (const part of group.parts) this.collecting.push(part)
+  }
+
+  end() { for (const part of this.parts) part.visible = part.seen === this.generation }
 }
