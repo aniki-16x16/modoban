@@ -88,4 +88,31 @@ export const chapterOne: readonly ChapterLevel[] = [
       '########################',
     ]),
   },
+  {
+    number: '06',
+    title: '换向',
+    exitDirection: 'left',
+    definition: pressureRoom('chapter-1-06', [
+      '#################',
+      '###########@Aa$##',
+      '#############.6##',
+      '#############.f##',
+      '##########.c.#..#',
+      '###...#..C.#....#',
+      '###..$.b.B...$..#',
+      '###....#.D.#....#',
+      '###....#.#.#..5.#',
+      '###....########.#',
+      '###########E..d.#',
+      '#################',
+    ], {
+      doorDirections: { A: 'down', B: 'right', C: 'right', D: 'right', F: 'down' },
+      doors: [
+        { id: 'entry-push', position: { x: 14, y: 1 }, direction: 'down', initialExtended: false, inputs: [{ kind: 'pressure', id: 'A' }] },
+        { id: 'right-shutter', position: { x: 11, y: 6 }, direction: 'left', initialExtended: false, inputs: [{ kind: 'pressure', id: 'B' }] },
+        { id: 'delivery', position: { x: 9, y: 6 }, direction: 'down', initialExtended: false, inputs: [{ kind: 'pressure', id: 'E' }] },
+        { id: 'upper-exit', position: { x: 12, y: 10 }, direction: 'right', initialExtended: true, inputs: [{ kind: 'pressure', id: 'C' }] },
+      ],
+    }),
+  },
 ]
