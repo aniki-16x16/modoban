@@ -105,4 +105,37 @@ export const chapterTwo: readonly ChapterLevel[] = [
       ],
     }),
   },
+  {
+    number: '05',
+    title: '共台',
+    exitDirection: 'left',
+    definition: pressureRoom('chapter-2-05', [
+      '#################',
+      '#######.###.#####',
+      '#################',
+      '##............###',
+      '##.$@.##..#.#.###',
+      '##....##.##...###',
+      '#####....#.C..###',
+      '#.$.c....#....###',
+      '#...#..###..D.###',
+      '#####.........###',
+      '##E.d.###########',
+      '#################',
+    ], {
+      axes: [
+        { id: 'loading', position: { x: 7, y: 1 }, initialPhase: 0, signals: [false, false, true, true] },
+        { id: 'unloading', position: { x: 11, y: 1 }, initialPhase: 0, signals: [false, false, false, true, true, true] },
+      ],
+      doorDirections: { C: 'right', D: 'right' },
+      doors: [
+        { id: 'loading', position: { x: 7, y: 3 }, direction: 'right', initialExtended: true, inputs: [{ kind: 'axis', id: 'loading' }] },
+        { id: 'lower-return', position: { x: 8, y: 5 }, direction: 'down', initialExtended: false, inputs: [{ kind: 'axis', id: 'loading' }] },
+        { id: 'unloading', position: { x: 11, y: 3 }, direction: 'down', initialExtended: true, inputs: [{ kind: 'axis', id: 'unloading' }] },
+        { id: 'bay-access', position: { x: 13, y: 4 }, direction: 'down', initialExtended: true, inputs: [{ kind: 'pressure', id: 'C' }] },
+        { id: 'cargo-return', position: { x: 9, y: 9 }, direction: 'right', initialExtended: true, inputs: [{ kind: 'pressure', id: 'D' }] },
+        { id: 'exit-C', position: { x: 3, y: 10 }, direction: 'right', initialExtended: true, inputs: [{ kind: 'pressure', id: 'C' }] },
+      ],
+    }),
+  },
 ]

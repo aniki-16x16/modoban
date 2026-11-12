@@ -16,4 +16,5 @@ export const levelSolutions: Readonly<Record<string, string>> = {
   'chapter-2-02': 'uuuuurdrrrrrrdrrrdrrullllldlurullllldlluurdduurrdurrlldddlluulurrrrrrrurdullrrdddlddrrrrr',
   'chapter-2-03': 'uuuurrurdldrlrrrrrlrrrurrrrdrrullllddllurluurrddululdrdudludllllrlllluldduuurrrrrrrdrrdddrdrrr',
   'chapter-2-04': 'uuurrudrudrdllddlluulurrudrrurrdulldrrdddurruullrrrrrr',
+  'chapter-2-05': 'dlulurrlrrrrrlrrlrlrlrrdduduulllddllldlldllurrrrurrdldluuuududulurrrrrrddrruulrddllddldrdllllluuuluuurrrrrrddrddlddlllllldlll',
 }
