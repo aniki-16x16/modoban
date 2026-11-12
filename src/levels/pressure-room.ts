@@ -1,8 +1,15 @@
 import { parseLevel } from '../engine/index.ts'
-import type { LevelDefinition, Position } from '../engine/index.ts'
+import type { Direction, LevelDefinition, Position } from '../engine/index.ts'
 
-/** A–D and 1–7 (A–G) are plates; matching lowercase letters are retracted-by-pressure doors. */
-export function pressureRoom(id: string, rows: readonly string[]): LevelDefinition {
+interface PressureRoomOptions {
+  readonly axes?: LevelDefinition['axes']
+  readonly doors?: LevelDefinition['doors']
+  readonly doorDirections?: Readonly<Record<string, Direction>>
+}
+
+/** A–D and 1–7 (A–G) are plates; matching lowercase letters are retracted-by-pressure doors.
+ * Options add axes and doors, and override the directions of doors from the map. */
+export function pressureRoom(id: string, rows: readonly string[], options: PressureRoomOptions = {}): LevelDefinition {
   const width = rows[0].length
   const walls: Position[] = []
   const entities: LevelDefinition['entities'][number][] = []
@@ -21,11 +28,11 @@ export function pressureRoom(id: string, rows: readonly string[]): LevelDefiniti
         const id = /^[1-7]$/.test(tile) ? String.fromCharCode(64 + Number(tile)) : tile
         mechanisms.push({ id, kind: 'pressure', position })
       } else if (/^[a-g]$/.test(tile)) {
-        doors.push({ id: tile.toUpperCase(), position, direction: 'down', initialExtended: true, inputs: [{ kind: 'pressure', id: tile.toUpperCase() }] })
+        doors.push({ id: tile.toUpperCase(), position, direction: options.doorDirections?.[tile.toUpperCase()] ?? 'down', initialExtended: true, inputs: [{ kind: 'pressure', id: tile.toUpperCase() }] })
       } else if (tile !== '.') throw new Error(`${id}: unknown tile ${tile}`)
     }
   }
   if (!exit) throw new Error(`${id}: missing exit`)
-  return parseLevel({ id, width, height: rows.length, walls, entities, mechanisms, doors, exit, axes: [] })
+  return parseLevel({ id, width, height: rows.length, walls, entities, mechanisms, doors: [...doors, ...(options.doors ?? [])], exit, axes: options.axes ?? [] })
 }
 
