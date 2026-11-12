@@ -53,4 +53,30 @@ export const chapterTwo: readonly ChapterLevel[] = [
       ],
     }),
   },
+  {
+    number: '03',
+    title: '接驳',
+    exitDirection: 'right',
+    definition: pressureRoom('chapter-2-03', [
+      '####################',
+      '###############.####',
+      '####################',
+      '##.......a.....#...#',
+      '##..$..#####...b.$.#',
+      '##...........B.#...#',
+      '##.....#####...#####',
+      '##...A.#####....####',
+      '##.@...#######D..dE#',
+      '####################',
+    ], {
+      axes: [{ id: 'beat', position: { x: 15, y: 1 }, initialPhase: 0, signals: [false, false, true, true] }],
+      doorDirections: { A: 'right', B: 'left', D: 'right' },
+      doors: [
+        { id: 'outbound', position: { x: 8, y: 5 }, direction: 'right', initialExtended: true, inputs: [{ kind: 'axis', id: 'beat' }] },
+        { id: 'inbound', position: { x: 11, y: 5 }, direction: 'left', initialExtended: false, inputs: [{ kind: 'axis', id: 'beat' }] },
+        { id: 'delivery', position: { x: 14, y: 7 }, direction: 'down', initialExtended: true, inputs: [{ kind: 'pressure', id: 'A' }] },
+        { id: 'exit-A', position: { x: 16, y: 8 }, direction: 'right', initialExtended: true, inputs: [{ kind: 'pressure', id: 'A' }] },
+      ],
+    }),
+  },
 ]
