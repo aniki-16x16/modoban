@@ -117,7 +117,7 @@ export function parseLevel(value: unknown): LevelDefinition {
   requireCondition(entities.filter(entity => entity.kind === 'player').length === 1, 'level must have exactly one player')
   const doors = identified(source.doors, 'doors').map<DoorDefinition>(item => {
     const point = floor(item.position, `door ${item.id}.position`)
-    requireCondition(isDirection(item.direction), `door ${item.id} has invalid direction`)
+    requireCondition(isDirection(item.direction) || item.direction === 'z-down', `door ${item.id} has invalid direction`)
     requireCondition(typeof item.initialExtended === 'boolean', `door ${item.id}.initialExtended must be boolean`)
     if (item.initialExtended) {
       requireCondition(!occupied.has(cellKey(point)), `extended door ${item.id} overlaps an entity or door`)

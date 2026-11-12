@@ -1,6 +1,8 @@
+import type { CameraSettings } from '../render/math.ts'
 import type { Direction, LevelDefinition } from '../engine/index.ts'
 
 export interface ChapterLevel {
+  readonly camera?: CameraSettings
   readonly number: string
   readonly title: string
   readonly exitDirection?: Direction

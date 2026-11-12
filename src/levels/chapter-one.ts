@@ -64,11 +64,12 @@ export const chapterOne: readonly ChapterLevel[] = [
       '##.$....C.cdE#',
       '##.D......####',
       '##############',
-    ]),
+    ], { doorDirections: { A: 'down', B: 'down' } }),
   },
   {
     number: '05',
     title: '连锁',
+    camera: { elevation: 78, fov: 40 },
     definition: pressureRoom('chapter-1-05', [
       '########################',
       '#@1a####################',
@@ -86,7 +87,7 @@ export const chapterOne: readonly ChapterLevel[] = [
       '#######........#....####',
       '################....####',
       '########################',
-    ]),
+    ], { doorDirections: { A: 'down', C: 'down', D: 'down' } }),
   },
   {
     number: '06',
@@ -106,12 +107,12 @@ export const chapterOne: readonly ChapterLevel[] = [
       '###########E..d.#',
       '#################',
     ], {
-      doorDirections: { A: 'down', B: 'right', C: 'right', D: 'right', F: 'down' },
+      doorDirections: { A: 'down' },
       doors: [
         { id: 'entry-push', position: { x: 14, y: 1 }, direction: 'down', initialExtended: false, inputs: [{ kind: 'pressure', id: 'A' }] },
-        { id: 'right-shutter', position: { x: 11, y: 6 }, direction: 'left', initialExtended: false, inputs: [{ kind: 'pressure', id: 'B' }] },
+        { id: 'right-shutter', position: { x: 11, y: 6 }, direction: 'z-down', initialExtended: false, inputs: [{ kind: 'pressure', id: 'B' }] },
         { id: 'delivery', position: { x: 9, y: 6 }, direction: 'down', initialExtended: false, inputs: [{ kind: 'pressure', id: 'E' }] },
-        { id: 'upper-exit', position: { x: 12, y: 10 }, direction: 'right', initialExtended: true, inputs: [{ kind: 'pressure', id: 'C' }] },
+        { id: 'upper-exit', position: { x: 12, y: 10 }, direction: 'z-down', initialExtended: true, inputs: [{ kind: 'pressure', id: 'C' }] },
       ],
     }),
   },
@@ -135,14 +136,13 @@ export const chapterOne: readonly ChapterLevel[] = [
       '################E#',
       '##################',
     ], {
-      doorDirections: { E: 'down', F: 'down', G: 'right' },
       doors: [
         { id: 'entry', position: { x: 5, y: 2 }, direction: 'down', initialExtended: true, inputs: [{ kind: 'pressure', id: 'A' }, { kind: 'pressure', id: 'B' }] },
-        { id: 'shipping', position: { x: 7, y: 4 }, direction: 'left', initialExtended: true, inputs: [{ kind: 'pressure', id: 'C' }, { kind: 'pressure', id: 'D' }] },
-        { id: 'recovery', position: { x: 7, y: 8 }, direction: 'left', initialExtended: false, inputs: [{ kind: 'pressure', id: 'C' }, { kind: 'pressure', id: 'D' }] },
-        { id: 'exit-E', position: { x: 16, y: 9 }, direction: 'down', initialExtended: true, inputs: [{ kind: 'pressure', id: 'E' }] },
-        { id: 'exit-F', position: { x: 16, y: 10 }, direction: 'down', initialExtended: true, inputs: [{ kind: 'pressure', id: 'F' }] },
-        { id: 'exit-G', position: { x: 16, y: 11 }, direction: 'down', initialExtended: true, inputs: [{ kind: 'pressure', id: 'G' }] },
+        { id: 'shipping', position: { x: 7, y: 4 }, direction: 'z-down', initialExtended: true, inputs: [{ kind: 'pressure', id: 'C' }, { kind: 'pressure', id: 'D' }] },
+        { id: 'recovery', position: { x: 7, y: 8 }, direction: 'z-down', initialExtended: false, inputs: [{ kind: 'pressure', id: 'C' }, { kind: 'pressure', id: 'D' }] },
+        { id: 'exit-E', position: { x: 16, y: 9 }, direction: 'z-down', initialExtended: true, inputs: [{ kind: 'pressure', id: 'E' }] },
+        { id: 'exit-F', position: { x: 16, y: 10 }, direction: 'z-down', initialExtended: true, inputs: [{ kind: 'pressure', id: 'F' }] },
+        { id: 'exit-G', position: { x: 16, y: 11 }, direction: 'z-down', initialExtended: true, inputs: [{ kind: 'pressure', id: 'G' }] },
       ],
     }),
   },

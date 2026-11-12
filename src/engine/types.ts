@@ -1,5 +1,8 @@
 export type Direction = 'up' | 'right' | 'down' | 'left'
 
+/** Vertical lifting is reserved for a future height-aware world. */
+export type DoorDirection = Direction | 'z-down'
+
 export interface Position {
   readonly x: number
   readonly y: number
@@ -49,9 +52,9 @@ export interface ControlInput {
 
 export interface DoorDefinition {
   readonly id: string
-  /** The cell occupied when extended; the mounting edge lies opposite direction. */
+  /** The cell occupied when extended; z-down mounts above it, planar doors at the opposite edge. */
   readonly position: Position
-  readonly direction: Direction
+  readonly direction: DoorDirection
   readonly initialExtended: boolean
   readonly inputs: readonly ControlInput[]
 }

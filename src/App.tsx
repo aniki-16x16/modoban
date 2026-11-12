@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CSSProperties, PointerEvent } from 'react'
+import type { PointerEvent } from 'react'
 import { GameController } from './engine/index.ts'
-import type { AxisDefinition, Direction, LevelDefinition, PlaybackFrame } from './engine/index.ts'
+import type { AxisDefinition, Direction, DoorDirection, LevelDefinition } from './engine/index.ts'
 import { allLevels, chapters } from './levels/index.ts'
 import type { Chapter, ChapterLevel } from './levels/index.ts'
-import { defaultMotionSettings, playerScale } from './motion.ts'
+import { defaultMotionSettings } from './motion.ts'
 import { circuitPalette } from './circuits.ts'
+import { Board3D } from './Board3D.tsx'
 import './style.css'
 
 const tile = 64
@@ -55,7 +56,19 @@ function BrakeSlot({ color }: { color: string }) {
   </g>
 }
 
-function Gate({ color, extension, direction }: { color: string; extension: number; direction: Direction }) {
+function Gate({ color, extension, direction }: { color: string; extension: number; direction: DoorDirection }) {
+  if (direction === 'z-down') {
+    const inset = 5 + 5 * extension
+    return <g>
+      <title>顶部落门：垂直落下封路，压毁门格内的物体</title>
+      <path d="M5 17V5h12m30 0h12v12M5 47v12h12m30 0h12V47" fill="none" stroke={color} strokeWidth="3" />
+      {extension > 0 && <g>
+        <rect x={inset - 2} y={inset + 3} width={68 - inset * 2} height={64 - inset * 2} rx="3" fill="#142720" opacity={extension * .25} />
+        <rect x={inset} y={inset} width={64 - inset * 2} height={64 - inset * 2} rx="2" fill={color} fillOpacity={extension * .5} stroke={color} strokeOpacity={extension} strokeWidth="2" />
+        <path d="M23 32h18M32 23v18" stroke={color} strokeWidth="2" opacity={extension * .65} />
+      </g>}
+    </g>
+  }
   const rotation = { down: 0, left: 90, up: 180, right: 270 }[direction]
   return <g transform={`rotate(${rotation}, 32, 32)`}>
     {extension > 0 && <rect x="8" y="0" width="48" height={extension * tile} fill={color} fillOpacity=".35" />}
@@ -71,79 +84,6 @@ function Arrow({ direction = 'right' }: { direction?: Direction }) {
   const rotation = { right: 0, down: 90, left: 180, up: 270 }[direction]
   return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ transform: `rotate(${rotation}deg)` }}>
     <path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-}
-
-function Board({ level, frame, exitDirection = 'right' }: { level: LevelDefinition; frame: PlaybackFrame; exitDirection?: Direction }) {
-  const colorFor = circuitPalette(level)
-  const walls = new Set(level.walls.map(p => `${p.x},${p.y}`))
-  const floors = []
-  for (let y = 0; y < level.height; y += 1) {
-    for (let x = 0; x < level.width; x += 1) {
-      if (!walls.has(`${x},${y}`)) floors.push(<rect key={`${x},${y}`} x={x * tile + 1} y={y * tile + 1} width={62} height={62} rx={3} className="floor-tile" />)
-    }
-  }
-  const cycleDescription = level.axes.map(axis => `${axis.signals.length}拍周期，当前第${(frame.state.axes.find(state => state.id === axis.id)?.phase ?? axis.initialPhase) + 1}拍。`).join('')
-  return <svg className="board" viewBox={`0 0 ${level.width * tile} ${level.height * tile}`} role="img" aria-label={`关卡地图，${level.width}列${level.height}行。圆形是角色，木箱可推动，凸起的圆形按钮是压力板，同色半透明矩形是它控制的门，箭头是出口。带方形底座的圆盘是不可通行的周期轴。${cycleDescription}`}>
-    <defs>
-      <pattern id="wall-pattern" width="16" height="16" patternUnits="userSpaceOnUse">
-        <path d="m0 16 16-16M-4 4 4-4m8 24 8-8" stroke="#fff" strokeOpacity=".035" strokeWidth="1" />
-      </pattern>
-      <filter id="piece-shadow" x="-40%" y="-40%" width="180%" height="180%">
-        <feDropShadow dx="0" dy="3" stdDeviation="2" floodColor="#1e3029" floodOpacity=".18" />
-      </filter>
-    </defs>
-    <rect width={level.width * tile} height={level.height * tile} fill="#293f37" rx="14" />
-    <rect width={level.width * tile} height={level.height * tile} fill="url(#wall-pattern)" rx="14" />
-    {floors}
-    <g transform={`translate(${level.exit.x * tile}, ${level.exit.y * tile})`}>
-      <rect x="8" y="8" width="48" height="48" rx="10" fill="#d4e5d2" />
-      <path d="M20 32h24m-9-9 9 9-9 9" transform={`rotate(${{ right: 0, down: 90, left: 180, up: 270 }[exitDirection]},32,32)`} fill="none" stroke="#4f7852" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-    </g>
-    {level.axes.map(axis => {
-      const state = frame.state.axes.find(state => state.id === axis.id)!
-      return <g key={axis.id} transform={`translate(${axis.position.x * tile}, ${axis.position.y * tile})`}>
-        <CycleBase axis={axis} phase={state.phase} locked={state.locked} color={colorFor('axis', axis.id)} />
-      </g>
-    })}
-    {level.mechanisms.map(plate => {
-      const active = frame.state.pressures.find(item => item.id === plate.id)?.active
-      const color = colorFor(plate.kind, plate.id)
-      return <g key={plate.id} transform={`translate(${plate.position.x * tile + 32}, ${plate.position.y * tile + 32})`}>
-        {plate.kind === 'slot' ? <BrakeSlot color={color} /> : <PressureButton color={color} active={active} />}
-      </g>
-    })}
-    {level.doors.map(door => {
-      const motion = frame.doors.find(item => item.doorId === door.id)
-      const extension = motion?.extension ?? Number(frame.state.doors.find(item => item.id === door.id)?.extended)
-      return <g key={door.id} transform={`translate(${door.position.x * tile}, ${door.position.y * tile})`}>
-        <Gate color={colorFor('door', door.id)} extension={extension} direction={door.direction} />
-      </g>
-    })}
-    {frame.state.entities.map(entity => {
-      const motion = frame.entities.find(item => item.entityId === entity.id)
-      const position = motion?.position ?? entity.position
-      if (!position) return null
-      const plate = level.mechanisms.find(item => item.position.x === position.x && item.position.y === position.y)
-      const scale = playerScale(motion)
-      return <g key={entity.id} transform={`translate(${position.x * tile + 32}, ${position.y * tile + 32})`} filter="url(#piece-shadow)">
-        {entity.kind === 'player' ? <g className="player-body" transform={`scale(${scale.x}, ${scale.y})`}>
-          <circle cy="2" r="20" fill="#a34532" />
-          <circle cy="-1" r="20" fill="#df7955" stroke="#f8c5a4" strokeWidth="1.5" />
-          <circle cx="-6" cy="-4" r="2.4" fill="#53382d" />
-          <circle cx="6" cy="-4" r="2.4" fill="#53382d" />
-          <path d="M-5 5q5 5 10 0" stroke="#53382d" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-        </g> : <>
-          <rect x="-23" y="-20" width="46" height="45" rx="7" fill="#8f6039" />
-          <rect x="-23" y="-24" width="46" height="45" rx="7" fill="#c99b64" stroke="#edc994" strokeWidth="2" />
-          <path d="M-16-17 16 14m0-31L-16 14" stroke="#97683f" strokeWidth="5" strokeLinecap="round" />
-          <rect x="-17" y="-18" width="34" height="33" rx="2" fill="none" stroke="#e9c28a" strokeWidth="2" />
-        </>}
-        {plate && <g transform="translate(19, 19)">
-          <circle r="10" fill={colorFor(plate.kind, plate.id)} stroke="#fff7e8" strokeWidth="1.5" />
-        </g>}
-      </g>
-    })}
   </svg>
 }
 
@@ -275,7 +215,6 @@ function LevelGame({ puzzle, onComplete, onReturn, onNext }: {
   const [notice, setNotice] = useState('')
   const boardRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDialogElement>(null)
-  const touchStart = useRef<{ x: number; y: number } | null>(null)
   const won = frame.finished && frame.state.outcome.kind === 'won'
   const failed = frame.finished && (frame.state.outcome.kind === 'dead' || frame.state.outcome.kind === 'loop')
 
@@ -352,23 +291,9 @@ function LevelGame({ puzzle, onComplete, onReturn, onNext }: {
     if (won) onComplete(puzzle.definition.id)
   }, [won, puzzle.definition.id, onComplete])
 
-  return <main className={`play-page${won ? ' is-won' : ''}`} aria-label={`第${puzzle.number}关 ${puzzle.title}`} style={{ '--board-ratio': puzzle.definition.width / puzzle.definition.height, '--board-width': `${puzzle.definition.width * tile}px` } as CSSProperties}>
-    <div className="board-space" ref={boardRef} tabIndex={-1} aria-label="游戏区域，方向键或 WASD 移动，Z 撤销，R 重来，Esc 菜单。触屏可滑动地图移动。"
-      onTouchStart={event => {
-        if (menuOpen || event.touches.length !== 1) { touchStart.current = null; return }
-        touchStart.current = { x: event.touches[0].clientX, y: event.touches[0].clientY }
-      }}
-      onTouchCancel={() => { touchStart.current = null }}
-      onTouchEnd={event => {
-        const start = touchStart.current
-        touchStart.current = null
-        if (!start || menuOpen) return
-        const dx = event.changedTouches[0].clientX - start.x
-        const dy = event.changedTouches[0].clientY - start.y
-        if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return
-        move(Math.abs(dx) > Math.abs(dy) ? dx > 0 ? 'right' : 'left' : dy > 0 ? 'down' : 'up')
-      }}>
-      <Board level={puzzle.definition} frame={frame} exitDirection={puzzle.exitDirection} />
+  return <main className={`play-page${won ? ' is-won' : ''}`} aria-label={`第${puzzle.number}关 ${puzzle.title}`}>
+    <div className="board-space" ref={boardRef} tabIndex={-1} aria-label="游戏区域，方向键或 WASD 移动，Z 撤销，R 重来，Esc 菜单。">
+      <Board3D level={puzzle.definition} frame={frame} exitDirection={puzzle.exitDirection} camera={puzzle.camera} />
     </div>
     <footer className="play-help" aria-label="操作提示">
       {won ? <button className="help-action next-action" onClick={onNext ?? onReturn}><kbd>Enter</kbd><span>{onNext ? '下一关' : '返回关卡选择'}</span><Arrow /></button>

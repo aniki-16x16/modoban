@@ -1,14 +1,14 @@
 import { parseLevel } from '../engine/index.ts'
-import type { Direction, LevelDefinition, Position } from '../engine/index.ts'
+import type { DoorDirection, LevelDefinition, Position } from '../engine/index.ts'
 
 interface PressureRoomOptions {
   readonly axes?: LevelDefinition['axes']
   readonly doors?: LevelDefinition['doors']
-  readonly doorDirections?: Readonly<Record<string, Direction>>
+  readonly doorDirections?: Readonly<Record<string, DoorDirection>>
 }
 
 /** A–D and 1–7 (A–G) are plates; matching lowercase letters are retracted-by-pressure doors.
- * Options add axes and doors, and override the directions of doors from the map. */
+ * Map doors default to ceiling shutters; options explicitly select planar push directions. */
 export function pressureRoom(id: string, rows: readonly string[], options: PressureRoomOptions = {}): LevelDefinition {
   const width = rows[0].length
   const walls: Position[] = []
@@ -28,7 +28,7 @@ export function pressureRoom(id: string, rows: readonly string[], options: Press
         const id = /^[1-7]$/.test(tile) ? String.fromCharCode(64 + Number(tile)) : tile
         mechanisms.push({ id, kind: 'pressure', position })
       } else if (/^[a-g]$/.test(tile)) {
-        doors.push({ id: tile.toUpperCase(), position, direction: options.doorDirections?.[tile.toUpperCase()] ?? 'down', initialExtended: true, inputs: [{ kind: 'pressure', id: tile.toUpperCase() }] })
+        doors.push({ id: tile.toUpperCase(), position, direction: options.doorDirections?.[tile.toUpperCase()] ?? 'z-down', initialExtended: true, inputs: [{ kind: 'pressure', id: tile.toUpperCase() }] })
       } else if (tile !== '.') throw new Error(`${id}: unknown tile ${tile}`)
     }
   }

@@ -1,3 +1,4 @@
+import { planPush } from './push.ts'
 import { cellKey, copyState, freeze, nextPosition, samePosition } from './state.ts'
 import type { MutableState } from './state.ts'
 import type {
@@ -248,32 +249,33 @@ function actuateDoors(world: World, recorder: Recorder) {
       recorder.commit('door', door.id, reads, () => { door.extended = false })
       continue
     }
-    const chain: MutableState['entities'] = []
-    let position = definition.position
-    while (true) {
-      reads.push(cellResource(position))
-      if (world.fixedAt(position)) break
-      const entity = world.entityAt(position)
-      if (!entity) break
-      chain.push(entity)
-      reads.push(`entity:${entity.id}`)
-      position = nextPosition(position, definition.direction)
+    const offsets = {
+      up: { x: 0, y: -1, z: 0 }, down: { x: 0, y: 1, z: 0 },
+      left: { x: -1, y: 0, z: 0 }, right: { x: 1, y: 0, z: 0 },
+      'z-down': { x: 0, y: 0, z: -1 },
     }
-    let victim: MutableState['entities'][number] | undefined
-    if (world.fixedAt(position)) {
-      if (chain.length === 0) continue
-      victim = chain[0]
-      for (const entity of chain) {
-        if (hardness[entity.kind] < hardness[victim.kind]) victim = entity
-      }
-    }
-    const moving = victim ? chain.slice(0, chain.indexOf(victim)) : chain
+    const plan = planPush({ ...definition.position, z: 0 }, offsets[definition.direction], cell => {
+      // Existing levels have a continuous solid floor below their only playable layer.
+      if (cell.z < 0) return 'fixed'
+      if (cell.z > 0) return undefined
+      reads.push(cellResource(cell))
+      if (world.fixedAt(cell)) return 'fixed'
+      const occupant = world.entityAt(cell)
+      if (occupant) reads.push(`entity:${occupant.id}`)
+      return occupant
+    }, entity => hardness[entity.kind])
+    if (!plan) continue
+    const { victim, moving } = plan
     recorder.commit('door', door.id, reads, () => {
       if (victim) {
         victim.position = null
         victim.conveyorId = null
       }
-      for (const entity of moving) world.shift(entity, definition.direction)
+      for (const { entity, destination } of moving) {
+        entity.position = { x: destination.x, y: destination.y }
+        const ground = world.mechanisms.get(cellKey(entity.position))
+        if (ground?.kind !== 'conveyor' || ground.beltId !== entity.conveyorId) entity.conveyorId = null
+      }
       door.extended = true
     })
     if (victim?.kind === 'player') {

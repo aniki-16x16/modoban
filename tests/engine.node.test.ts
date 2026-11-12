@@ -5,7 +5,7 @@ import {
   createAnimationPlan, motionEasings, parseLevel, sampleAnimation,
 } from '../src/engine/index.ts'
 import type {
-  Direction, DoorDefinition, EntityDefinition, GameState, LevelDefinition,
+  Direction, DoorDirection, DoorDefinition, EntityDefinition, GameState, LevelDefinition,
   MechanismDefinition, Position, TurnTrace,
 } from '../src/engine/index.ts'
 
@@ -16,7 +16,7 @@ const conveyor = (id: string, beltId: string, x: number, y: number, direction: D
 const hot = { id: 'hot', position: point(7, 0), initialPhase: 0, signals: [true] }
 const axisInput = [{ kind: 'axis' as const, id: 'hot' }]
 
-function door(id: string, x: number, y: number, direction: Direction = 'right', inputs = axisInput, initialExtended = false): DoorDefinition {
+function door(id: string, x: number, y: number, direction: DoorDirection = 'right', inputs = axisInput, initialExtended = false): DoorDefinition {
   return { id, position: point(x, y), direction, inputs, initialExtended }
 }
 
@@ -280,6 +280,61 @@ test('stone is destructible when it is the softest remaining candidate', () => {
   }))
   move(engine)
   assert.equal(entity(engine.state, 'stone').position, null)
+})
+
+for (const kind of ['box', 'stone'] as const) {
+  test(`ceiling doors crush a ${kind} in place, release pressure and leave adjacent objects untouched`, () => {
+    const engine = new GameEngine(level({
+      axes: [hot], entities: [player(), box('victim', 2, 2, kind), box('neighbor', 3, 2)],
+      mechanisms: [{ id: 'plate', kind: 'pressure', position: point(2, 2) }],
+      doors: [door('crusher', 2, 2, 'z-down'), {
+        id: 'response', position: point(5, 2), direction: 'z-down', initialExtended: true,
+        inputs: [{ kind: 'pressure', id: 'plate' }],
+      }],
+    }))
+    const before = engine.state
+    move(engine)
+    assert.equal(entity(engine.state, 'victim').position, null)
+    assert.deepEqual(entity(engine.state, 'neighbor').position, point(3, 2))
+    assert.equal(engine.state.pressures[0].active, false)
+    assert.ok(engine.state.doors.every(item => item.extended))
+    assertInvariants(engine)
+    engine.undo()
+    assert.equal(engine.state, before)
+    move(engine)
+    engine.reset()
+    assert.equal(engine.state, before)
+  })
+}
+
+test('ceiling door crushing is animated without planar movement and death can be undone', () => {
+  const engine = new GameEngine(level({
+    axes: [hot], entities: [player(2, 1)], doors: [door('crusher', 2, 2, 'z-down')],
+  }))
+  const before = engine.state
+  const trace = move(engine)
+  assert.deepEqual(engine.state.outcome, { kind: 'dead', entityId: 'player', doorId: 'crusher' })
+  const plan = createAnimationPlan(trace)
+  const clip = plan.clips.find(item => item.action.kind === 'door')!
+  const during = sampleAnimation(plan, (clip.startMs + clip.endMs) / 2)
+  assert.ok(during.doors[0].extension > 0 && during.doors[0].extension < 1)
+  assert.equal(during.entities.length, 0)
+  assert.deepEqual(entity(during.state, 'player').position, point(2, 2))
+  assert.equal(entity(sampleAnimation(plan, plan.durationMs).state, 'player').position, null)
+  engine.undo()
+  assert.equal(engine.state, before)
+})
+
+test('ceiling doors respect fixed obstacles and retract to allow passage', () => {
+  const engine = new GameEngine(level({
+    axes: [hot], doors: [door('fixed', 2, 2, 'right', [], true), door('blocked', 2, 2, 'z-down'),
+      door('opening', 0, 2, 'z-down', axisInput, true)],
+  }))
+  move(engine)
+  assert.deepEqual(engine.state.doors.map(item => item.extended), [true, false, false])
+  move(engine)
+  assert.deepEqual(entity(engine.state, 'player').position, point(0, 2))
+  assertInvariants(engine)
 })
 
 test('extended doors are indestructible and contention follows door storage order', () => {
