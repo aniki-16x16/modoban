@@ -92,7 +92,7 @@ function Arrow({ direction = 'right' }: { direction?: Direction }) {
 function LevelPreview({ level, exitDirection = 'right' }: { level: LevelDefinition; exitDirection?: Direction }) {
   const colorFor = circuitPalette(level)
   const walls = new Set(level.walls.map(position => `${position.x},${position.y}`))
-  return <svg className="level-preview" viewBox={`-1 -1 ${level.width + 2} ${level.height + 2}`} fill="none" aria-hidden="true">
+  return <svg className="level-preview" width={(level.width + 2) * 24} height={(level.height + 2) * 24} viewBox={`-1 -1 ${level.width + 2} ${level.height + 2}`} fill="none" aria-hidden="true">
     {Array.from({ length: level.width * level.height }, (_, index) => {
       const x = index % level.width
       const y = Math.floor(index / level.width)
@@ -122,9 +122,37 @@ function LevelPreview({ level, exitDirection = 'right' }: { level: LevelDefiniti
 }
 
 function ChapterSection({ chapter, completed }: { chapter: Chapter; completed: readonly string[] }) {
+  const listRef = useRef<HTMLElement>(null)
   const dragRef = useRef<{ pointerId: number; startX: number; scrollLeft: number; dragging: boolean } | null>(null)
   const suppressClickRef = useRef(false)
   const [dragging, setDragging] = useState(false)
+  const [scrollEdges, setScrollEdges] = useState({ left: false, right: false })
+
+  useEffect(() => {
+    const list = listRef.current
+    if (!list) return
+    const updateEdges = () => {
+      const left = list.scrollLeft > 1
+      const right = list.scrollWidth - list.clientWidth - list.scrollLeft > 1
+      setScrollEdges(previous => previous.left === left && previous.right === right ? previous : { left, right })
+    }
+    const observer = new ResizeObserver(updateEdges)
+    observer.observe(list)
+    list.addEventListener('scroll', updateEdges, { passive: true })
+    updateEdges()
+    return () => {
+      observer.disconnect()
+      list.removeEventListener('scroll', updateEdges)
+    }
+  }, [chapter.levels.length])
+
+  const scrollLevels = (direction: number) => {
+    const list = listRef.current
+    if (!list) return
+    const card = list.firstElementChild
+    const distance = (card?.getBoundingClientRect().width ?? 300) + parseFloat(getComputedStyle(list).columnGap)
+    list.scrollBy({ left: direction * distance, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+  }
 
   const finishDrag = (event: PointerEvent<HTMLElement>) => {
     if (dragRef.current?.pointerId !== event.pointerId) return
@@ -138,53 +166,60 @@ function ChapterSection({ chapter, completed }: { chapter: Chapter; completed: r
       <span className="chapter-index">{chapter.number}</span>
       <h2 id={`chapter-${chapter.number}`}>{chapter.title}</h2>
     </div>
-    <nav className={`level-list${dragging ? ' is-dragging' : ''}`} aria-label={`第${Number(chapter.number)}章关卡`}
-      onPointerDown={event => {
-        suppressClickRef.current = false
-        if (event.pointerType !== 'mouse' || event.button !== 0 || event.currentTarget.scrollWidth <= event.currentTarget.clientWidth) return
-        dragRef.current = { pointerId: event.pointerId, startX: event.clientX, scrollLeft: event.currentTarget.scrollLeft, dragging: false }
-      }}
-      onPointerMove={event => {
-        const drag = dragRef.current
-        if (!drag || drag.pointerId !== event.pointerId) return
-        const distance = event.clientX - drag.startX
-        if (!drag.dragging) {
-          if (Math.abs(distance) < 6) return
-          drag.dragging = true
-          suppressClickRef.current = true
-          event.currentTarget.setPointerCapture(event.pointerId)
-          setDragging(true)
-        }
-        event.preventDefault()
-        event.currentTarget.scrollLeft = drag.scrollLeft - distance
-      }}
-      onPointerUp={finishDrag}
-      onPointerCancel={finishDrag}
-      onLostPointerCapture={finishDrag}
-      onPointerLeave={event => { if (!dragRef.current?.dragging) finishDrag(event) }}
-      onDragStart={event => event.preventDefault()}
-      onClickCapture={event => {
-        if (!suppressClickRef.current || event.detail === 0) return
-        event.preventDefault()
-        event.stopPropagation()
-        suppressClickRef.current = false
-      }}>
-      {chapter.levels.map(level => {
-        const cleared = completed.includes(level.definition.id)
-        return <a key={level.definition.id} href={`#play/${level.definition.id}`} className={`level-card${cleared ? ' is-complete' : ''}`}>
-          <div className="level-art">
-            <span className="art-corner corner-top" />
-            <LevelPreview level={level.definition} exitDirection={level.exitDirection} />
-            <span className="art-corner corner-bottom" />
-          </div>
-          <div className="level-info">
-            <span className="level-number">{level.number}</span>
-            <h3>{level.title}</h3>
-            <span className="level-status">{cleared && <span aria-hidden="true">✓</span>}{cleared ? '已完成' : '未完成'}</span>
-          </div>
-        </a>
-      })}
-    </nav>
+    <div className="level-carousel">
+      <nav ref={listRef} id={`chapter-levels-${chapter.number}`} className={`level-list${scrollEdges.left || scrollEdges.right ? ' has-overflow' : ''}${dragging ? ' is-dragging' : ''}`} aria-label={`第${Number(chapter.number)}章关卡`}
+        onPointerDown={event => {
+          suppressClickRef.current = false
+          if (event.pointerType !== 'mouse' || event.button !== 0 || event.currentTarget.scrollWidth <= event.currentTarget.clientWidth) return
+          dragRef.current = { pointerId: event.pointerId, startX: event.clientX, scrollLeft: event.currentTarget.scrollLeft, dragging: false }
+        }}
+        onPointerMove={event => {
+          const drag = dragRef.current
+          if (!drag || drag.pointerId !== event.pointerId) return
+          const distance = event.clientX - drag.startX
+          if (!drag.dragging) {
+            if (Math.abs(distance) < 6) return
+            drag.dragging = true
+            suppressClickRef.current = true
+            event.currentTarget.setPointerCapture(event.pointerId)
+            setDragging(true)
+          }
+          event.preventDefault()
+          event.currentTarget.scrollLeft = drag.scrollLeft - distance
+        }}
+        onPointerUp={finishDrag}
+        onPointerCancel={finishDrag}
+        onLostPointerCapture={finishDrag}
+        onPointerLeave={event => { if (!dragRef.current?.dragging) finishDrag(event) }}
+        onDragStart={event => event.preventDefault()}
+        onClickCapture={event => {
+          if (!suppressClickRef.current || event.detail === 0) return
+          event.preventDefault()
+          event.stopPropagation()
+          suppressClickRef.current = false
+        }}>
+        {chapter.levels.map(level => {
+          const cleared = completed.includes(level.definition.id)
+          return <a key={level.definition.id} href={`#play/${level.definition.id}`} className={`level-card${cleared ? ' is-complete' : ''}`}>
+            <div className="level-art">
+              <span className="art-corner corner-top" />
+              <LevelPreview level={level.definition} exitDirection={level.exitDirection} />
+              <span className="art-corner corner-bottom" />
+            </div>
+            <div className="level-info">
+              <span className="level-number">{level.number}</span>
+              <h3>{level.title}</h3>
+              <span className="level-status">{cleared && <span aria-hidden="true">✓</span>}{cleared ? '已完成' : '未完成'}</span>
+            </div>
+          </a>
+        })}
+      </nav>
+      {(['left', 'right'] as const).map(direction => scrollEdges[direction] && <div key={direction} className={`level-scroll-edge edge-${direction}`}>
+        <button type="button" className="level-scroll-button" aria-label={`向${direction === 'left' ? '左' : '右'}浏览关卡`} aria-controls={`chapter-levels-${chapter.number}`} title="左右拖动或点击箭头浏览关卡" onClick={() => scrollLevels(direction === 'left' ? -1 : 1)}>
+          <Arrow direction={direction} />
+        </button>
+      </div>)}
+    </div>
   </section>
 }
 

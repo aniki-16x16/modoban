@@ -36,20 +36,26 @@ a { color: inherit; text-decoration: none; }
 .chapter-heading { display: flex; align-items: baseline; gap: 24px; padding-bottom: 32px; }
 .chapter-heading h2 { margin: 0; font-size: clamp(32px, 4.5vw, 46px); font-weight: 600; letter-spacing: 4px; line-height: 1.4; }
 .chapter-index { font: italic 58px/1 Georgia, serif; color: #9da88c; letter-spacing: -3px; font-variant-numeric: tabular-nums; }
-.level-list { display: flex; flex-wrap: nowrap; gap: 24px; overflow-x: auto; scrollbar-width: none; padding: 8px 8px 24px; margin: -8px -8px -24px; user-select: none; cursor: grab; }
+.level-carousel { position: relative; }
+.level-list { display: flex; flex-wrap: nowrap; gap: 24px; overflow-x: auto; scrollbar-width: none; padding: 8px 8px 24px; margin: -8px -8px -24px; user-select: none; }
+.level-list.has-overflow { cursor: grab; }
 .level-list::-webkit-scrollbar { display: none; }
 .level-list.is-dragging, .level-list.is-dragging .level-card { cursor: grabbing; }
-.level-card { position: relative; display: block; flex: 1 0 300px; min-width: 0; border: 1px solid #dce0d1; border-radius: 16px; background: #faf9f4; overflow: hidden; transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease; animation: card-enter .65s .12s ease backwards; }
-.level-card:only-child { flex-grow: 0; max-width: 360px; }
+.level-scroll-edge { position: absolute; top: 0; bottom: 0; width: 64px; z-index: 2; display: flex; align-items: center; pointer-events: none; }
+.edge-left { left: -8px; justify-content: flex-start; background: linear-gradient(to right, #f5f3ec, #f5f3ec00); }
+.edge-right { right: -8px; justify-content: flex-end; background: linear-gradient(to left, #f5f3ec, #f5f3ec00); }
+.level-scroll-button { display: grid; place-items: center; width: 40px; height: 48px; padding: 0; border: 1px solid #cbd5bc; border-radius: 24px; background: #faf9f4; color: #526b51; box-shadow: 0 3px 12px #3c503418; pointer-events: auto; transition: background .2s; }
+.level-scroll-button:hover { background: #e9edde; }
+.level-card { position: relative; display: block; flex: 0 0 300px; min-width: 0; border: 1px solid #dce0d1; border-radius: 16px; background: #faf9f4; overflow: hidden; transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease; animation: card-enter .65s .12s ease backwards; }
 .level-card:nth-child(2) { animation-delay: .22s; }
 .level-card:hover { transform: translateY(-5px); border-color: #aebc98; box-shadow: 0 14px 30px #3c503410; }
 .level-card:active { transform: translateY(-1px); }
 .level-list.is-dragging .level-card { transform: none; }
 .level-art { height: 230px; position: relative; display: grid; place-items: center; overflow: hidden; background-color: #edf0e4; background-image: radial-gradient(#b7c2a754 .7px, transparent .7px); background-size: 14px 14px; border-bottom: 1px solid #e0e4d6; }
 .level-card:nth-child(2) .level-art { background-color: #efece2; background-image: radial-gradient(#c5bba754 .7px, transparent .7px); }
-.level-preview { width: 78%; height: 88%; transform: rotate(-7deg); transition: transform .55s cubic-bezier(.22, 1, .36, 1); filter: drop-shadow(0 5px 2px #586a3b09); }
-.level-card:nth-child(2) .level-preview { transform: rotate(6deg); }
-.level-card:hover .level-preview, .level-card:focus-visible .level-preview { transform: rotate(0deg) scale(1.05); }
+.level-preview { position: absolute; left: 50%; top: 50%; max-width: none; transform: translate(-50%, -50%) rotate(-7deg); transition: transform .55s cubic-bezier(.22, 1, .36, 1); filter: drop-shadow(0 5px 2px #586a3b09); }
+.level-card:nth-child(2) .level-preview { transform: translate(-50%, -50%) rotate(6deg); }
+.level-card:hover .level-preview, .level-card:focus-visible .level-preview { transform: translate(-50%, -50%) rotate(0deg); }
 .preview-player { transform-box: view-box; animation: player-breathe 3.8s ease-in-out infinite; }
 .level-card:nth-child(2) .preview-player { animation-delay: -1.5s; }
 .art-corner { position: absolute; width: 12px; height: 12px; border-color: #bec9ae; border-style: solid; z-index: 1; }
@@ -108,9 +114,6 @@ kbd { display: inline-grid; place-items: center; min-width: 24px; height: 26px; 
   .chapter-heading h2 { font-size: 32px; letter-spacing: 2px; }
   .chapter-index { font-size: 46px; }
   .level-list { gap: 16px; }
-  .level-art { height: 205px; }
-  .level-info { padding: 20px; }
-  .level-info h3 { font-size: 19px; }
   .play-page { padding: 16px 20px 0; }
   .play-help { gap: 17px; }
   .wasd-help { display: none; }
@@ -122,10 +125,6 @@ kbd { display: inline-grid; place-items: center; min-width: 24px; height: 26px; 
   .chapter-heading { gap: 18px; padding-bottom: 24px; }
   .chapter-heading h2 { font-size: 29px; }
   .chapter-index { font-size: 40px; }
-  .level-card { flex-basis: min(300px, calc(100vw - 60px)); border-radius: 13px; }
-  .level-art { height: 190px; }
-  .level-preview { width: 70%; height: 95%; }
-  .level-info { padding: 18px; }
   .play-page { --controls-height: 132px; padding: 14px 16px 0; }
   .play-help { gap: 0 25px; align-content: center; padding-top: 12px; }
   .movement-help, .next-action { flex-basis: 100%; justify-content: center; margin-bottom: 10px; }
