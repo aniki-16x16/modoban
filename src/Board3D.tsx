@@ -3,6 +3,8 @@ import type { Direction, LevelDefinition, PlaybackFrame } from './engine/index.t
 import type { CameraSettings } from './render/math.ts'
 import { createRenderer } from './render/renderer.ts'
 import type { Renderer } from './render/renderer.ts'
+import { Loading } from './Loading.tsx'
+import { afterPaint } from './afterPaint.ts'
 
 export function Board3D({ level, frame, exitDirection = 'right', camera }: {
   level: LevelDefinition; frame: PlaybackFrame; exitDirection?: Direction; camera?: CameraSettings
@@ -19,15 +21,19 @@ export function Board3D({ level, frame, exitDirection = 'right', camera }: {
     let owned: Renderer | undefined
     const element = canvas.current!
     const observer = new ResizeObserver(() => owned?.draw(current.current))
-    createRenderer(element,level,exitDirection,camera,message => { if (!cancelled) setError(message) }, abort.signal).then(result => {
-      if (cancelled) { result.dispose(); return }
-      owned = result; renderer.current = result
-      result.draw(current.current); observer.observe(element); setReady(true)
-    }).catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason)) })
-    return () => { cancelled = true; abort.abort(); observer.disconnect(); owned?.dispose(); renderer.current = null }
+    const cancelPreparation = afterPaint(() => {
+      void createRenderer(element,level,exitDirection,camera,message => { if (!cancelled) setError(message) }, abort.signal).then(result => {
+        if (cancelled) { result.dispose(); return }
+        owned = result; renderer.current = result
+        result.draw(current.current); observer.observe(element); setReady(true)
+      }).catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason)) })
+    })
+    return () => { cancelled = true; cancelPreparation(); abort.abort(); observer.disconnect(); owned?.dispose(); renderer.current = null }
   }, [level,exitDirection,camera])
-  return <div className="board-3d">
-    <canvas ref={canvas} role="img" aria-label={`三维关卡地图，${level.width}列${level.height}行，第${frame.state.turn}步。`} data-renderer={ready ? 'webgpu' : 'loading'} />
-    {(!ready || error) && <div className="render-message" role={error ? 'alert' : 'status'}>{error || '正在准备场景…'}</div>}
+  return <div className="board-3d" aria-busy={!ready && !error}>
+    <canvas ref={canvas} role="img" aria-label={`三维关卡地图，${level.width}列${level.height}行，第${frame.state.turn}步。`} data-renderer={error ? 'error' : ready ? 'webgpu' : 'loading'} />
+    {(!ready || error) && <div className="render-message" role={error ? 'alert' : undefined}>
+      {error || <Loading label="正在准备关卡…" />}
+    </div>}
   </div>
 }

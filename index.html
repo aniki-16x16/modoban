@@ -6,9 +6,30 @@
     <meta name="theme-color" content="#f5f3ec" />
     <meta name="description" content="Modoban：搬运箱子，安排机关，为自己腾出一条路。" />
     <title>Modoban · 压住与让路</title>
+    <style>
+      /* Available before the application bundle or its stylesheet has loaded. */
+      body { margin: 0; background: #f5f3ec; }
+      .loading-screen { box-sizing: border-box; min-height: 100svh; display: grid; place-items: center; padding: 32px; }
+      .loading-state { display: grid; justify-items: center; gap: 22px; color: #53634d; text-align: center; font: 13px/1.6 "Segoe UI", "Microsoft YaHei", sans-serif; }
+      .loading-state p { margin: 0; letter-spacing: 2px; }
+      .loading-mark { display: grid; grid-template-columns: repeat(2, 14px); gap: 6px; padding: 5px; transform: rotate(-9deg); }
+      .loading-mark i { width: 14px; height: 14px; border-radius: 3px; background: #526b51; animation: loading-step 1.4s ease-in-out infinite; }
+      .loading-mark i:nth-child(2) { background: #c49a64; animation-delay: .14s; }
+      .loading-mark i:nth-child(3) { background: #df7955; animation-delay: .42s; }
+      .loading-mark i:nth-child(4) { animation-delay: .28s; }
+      @keyframes loading-step { 0%, 65%, 100% { opacity: .45; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-5px); } }
+      @media (prefers-reduced-motion: reduce) { .loading-mark i { animation: none; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="loading-screen">
+        <div class="loading-state" role="status">
+          <span class="loading-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <p>正在加载游戏…</p>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

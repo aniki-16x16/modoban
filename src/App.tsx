@@ -8,6 +8,7 @@ import { defaultMotionSettings } from './motion.ts'
 import { circuitPalette } from './circuits.ts'
 import { Board3D } from './Board3D.tsx'
 import { prepareRenderer } from './render/renderer.ts'
+import { afterPaint } from './afterPaint.ts'
 import './style.css'
 
 const tile = 64
@@ -322,7 +323,7 @@ function levelFromHash() {
 }
 
 function App() {
-  useEffect(() => { void prepareRenderer().catch(() => { /* The board displays initialization errors. */ }) }, [])
+  useEffect(() => afterPaint(() => { void prepareRenderer().catch(() => { /* The board displays initialization errors. */ }) }), [])
   const [puzzle, setPuzzle] = useState(levelFromHash)
   const [completed, setCompleted] = useState<readonly string[]>([])
   const [returnLevel, setReturnLevel] = useState<string | null>(puzzle?.definition.id ?? null)
