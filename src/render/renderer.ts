@@ -7,7 +7,7 @@ import { buildScene } from './scene.ts'
 import { SceneBatch } from './batch.ts'
 
 const shader = `
-struct Camera { matrix: mat4x4f, eye: vec4f }
+struct Camera { matrix: mat4x4f, eye: vec3f, conveyorOffset: f32 }
 @group(0) @binding(0) var<uniform> camera: Camera;
 @group(0) @binding(1) var<storage, read> models: array<mat4x4f>;
 struct Vertex {
@@ -16,6 +16,7 @@ struct Vertex {
  @location(1) color: vec4f,
  @location(2) glow: f32,
  @location(3) world: vec3f,
+ @location(4) local: vec2f,
 }
 @vertex fn vertex(@location(0) position: vec3f, @location(1) normal: vec3f,
  @location(2) color: vec4f, @location(3) glow: f32, @location(4) instance: u32) -> Vertex {
@@ -26,21 +27,37 @@ struct Vertex {
  // Cofactors give the inverse-transpose normal direction for nonuniform scales.
  out.normal = normalize(normal.x * cross(model[1].xyz, model[2].xyz)
    + normal.y * cross(model[2].xyz, model[0].xyz) + normal.z * cross(model[0].xyz, model[1].xyz));
- out.color = color; out.glow = glow; out.world = world.xyz;
+ out.color = color; out.glow = glow; out.world = world.xyz; out.local = position.xy;
  return out;
 }
 @fragment fn fragment(in: Vertex) -> @location(0) vec4f {
  let normal = normalize(in.normal);
  let diffuse = max(dot(normal, normalize(vec3f(-0.4, -0.6, 1.0))), 0.0);
  let light = 0.66 + 0.34 * diffuse;
- let facing = abs(dot(normal, normalize(camera.eye.xyz - in.world)));
+ let facing = abs(dot(normal, normalize(camera.eye - in.world)));
  let edge = pow(1.0 - facing, 3.0);
- let lit = in.color.rgb * light;
- let emission = min(in.color.rgb * 1.3 + vec3f(0.13), vec3f(1.0));
- return vec4f(mix(lit, emission, in.glow), in.color.a * (1.0 + edge * in.glow * 0.35));
+ let pixel = max(max(fwidth(in.local.x), fwidth(in.local.y)), 0.0001);
+ var base = in.color.rgb;
+ // Negative glow marks a conveyor surface. Its pattern scrolls within the top face,
+ // so arrows clip cleanly at both rollers and never require new geometry.
+ if (in.glow < 0.0) {
+   let travel = in.local.x - camera.conveyorOffset;
+   let p = vec2f(fract(travel / 0.26) * 0.26 - 0.13, in.local.y);
+   let shaft = max(abs(p.x + 0.035) - 0.05, abs(p.y) - 0.023);
+   let head = max(-p.x - 0.005, abs(p.y) - (0.095 - p.x) * 0.85);
+   let mark = 1.0 - smoothstep(-pixel, pixel, min(shaft, head));
+   let seamDistance = abs(fract(travel / 0.13) - 0.5) * 0.13;
+   let seam = 1.0 - smoothstep(0.003, 0.003 + pixel, seamDistance);
+   base = mix(vec3f(0.20, 0.29, 0.24), base, 0.24) * (1.0 - seam * 0.22);
+   base = mix(base, vec3f(0.88, 0.91, 0.78), mark);
+ }
+ let glow = max(in.glow, 0.0);
+ let lit = base * light;
+ let emission = min(base * 1.3 + vec3f(0.13), vec3f(1.0));
+ return vec4f(mix(lit, emission, glow), in.color.a * (1.0 + edge * glow * 0.35));
 }`
 
-export interface Renderer { draw(frame: PlaybackFrame): void; dispose(): void }
+export interface Renderer { draw(frame: PlaybackFrame, nowMs?: number): void; dispose(): void }
 type Report = (message: string) => void
 interface Allocation { buffer: Buffer; capacity: number }
 interface Runtime {
@@ -163,8 +180,9 @@ export async function createRenderer(canvas: HTMLCanvasElement, level: LevelDefi
   let view: ReturnType<typeof fitCamera> | undefined
   let viewWidth = 0, viewHeight = 0
   let painted = false
+  const hasConveyors = level.mechanisms.some(mechanism => mechanism.kind === 'conveyor')
   const renderer: Renderer = {
-    draw(frame) {
+    draw(frame, nowMs = performance.now()) {
       if (disposed || runtime.failure) return
       const bounds = canvas.getBoundingClientRect(), ratio = Math.min(Math.max(window.devicePixelRatio || 1, 1.5), 2)
       const width = Math.max(1, Math.min(device.limits.maxTextureDimension2D, Math.round(bounds.width * ratio)))
@@ -184,7 +202,8 @@ export async function createRenderer(canvas: HTMLCanvasElement, level: LevelDefi
       }
       let cameraChanged = false
       for (let i=0;i<20;i++) {
-        const value = i<16 ? view.matrix[i] : i<19 ? Math.fround(view.eye[i-16]) : 1
+        const value = i<16 ? view.matrix[i] : i<19 ? Math.fround(view.eye[i-16])
+          : hasConveyors ? Math.fround((nowMs*.00028) % .26) : 0
         if (runtime.uniforms[i]!==value) { runtime.uniforms[i] = value; cameraChanged = true }
       }
       const scene = buildScene(level,frame,direction)

@@ -57,6 +57,7 @@ a { color: inherit; text-decoration: none; }
 .level-card:nth-child(2) .level-preview { transform: translate(-50%, -50%) rotate(6deg); }
 .level-card:hover .level-preview, .level-card:focus-visible .level-preview { transform: translate(-50%, -50%) rotate(0deg); }
 .preview-player { transform-box: view-box; animation: player-breathe 3.8s ease-in-out infinite; }
+.conveyor-tread { animation: conveyor-travel .93s linear infinite; }
 .level-card:nth-child(2) .preview-player { animation-delay: -1.5s; }
 .art-corner { position: absolute; width: 12px; height: 12px; border-color: #bec9ae; border-style: solid; z-index: 1; }
 .corner-top { left: 20px; top: 20px; border-width: 1px 0 0 1px; }
@@ -103,6 +104,7 @@ kbd { display: inline-grid; place-items: center; min-width: 24px; height: 26px; 
 @keyframes menu-enter { from { opacity: 0; transform: translateY(7px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes logo-step { 0%, 75%, 100% { transform: translateY(0); } 82%, 90% { transform: translateY(4px); } }
 @keyframes player-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12, .94); } }
+@keyframes conveyor-travel { to { transform: translateX(16px); } }
 
 @media (max-width: 760px) {
   .selection-page { padding-top: 36px; }

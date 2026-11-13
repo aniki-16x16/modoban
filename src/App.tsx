@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { PointerEvent } from 'react'
 import { GameController } from './engine/index.ts'
 import type { AxisDefinition, Direction, DoorDirection, LevelDefinition } from './engine/index.ts'
@@ -59,10 +59,21 @@ function BrakeSlot({ color }: { color: string }) {
 }
 
 function Conveyor({ direction, color }: { direction: Direction; color: string }) {
+  const clipId = useId()
   return <g transform={`rotate(${{ right: 0, down: 90, left: 180, up: 270 }[direction]})`}>
-    <rect x="-27" y="-27" width="54" height="54" rx="5" fill="#7d9180" stroke={color} strokeWidth="2" />
-    <path d="M-18-22v44M-6-22v44M6-22v44M18-22v44" stroke="#dce1cf" strokeWidth="2" opacity=".4" />
-    <path d="M-15 0h30M5-10 15 0 5 10" stroke={color} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+    <defs><clipPath id={clipId}><rect x="-26" y="-14" width="52" height="28" /></clipPath></defs>
+    <rect x="-30" y="-20" width="60" height="40" rx="2" fill="#52675a" />
+    <rect x="-26" y="-14" width="52" height="28" fill="#334b3f" stroke={color} strokeOpacity=".35" />
+    <g clipPath={`url(#${clipId})`}>
+      <g className="conveyor-tread">
+        {[-42, -26, -10, 6, 22, 38].map(x => <g key={x} transform={`translate(${x}, 0)`}>
+          <path d="M-8-14v28" stroke="#78917d" strokeOpacity=".3" />
+          <path d="M-5-1.5h5V-5L6 0 0 5V1.5h-5Z" fill="#e0e8c7" />
+        </g>)}
+      </g>
+    </g>
+    {[-18, 18].map(y => <rect key={y} x="-30" y={y - 2} width="60" height="4" rx="1" fill="#a4b29d" />)}
+    {[-28, 28].map(x => <rect key={x} x={x - 2} y="-16" width="4" height="32" rx="1" fill="#7d9180" />)}
   </g>
 }
 

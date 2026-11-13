@@ -19,6 +19,7 @@ export function Board3D({ level, frame, exitDirection = 'right', camera }: {
     let cancelled = false
     const abort = new AbortController()
     let owned: Renderer | undefined
+    let animationId: number | undefined
     const element = canvas.current!
     const observer = new ResizeObserver(() => owned?.draw(current.current))
     const cancelPreparation = afterPaint(() => {
@@ -26,9 +27,20 @@ export function Board3D({ level, frame, exitDirection = 'right', camera }: {
         if (cancelled) { result.dispose(); return }
         owned = result; renderer.current = result
         result.draw(current.current); observer.observe(element); setReady(true)
+        if (level.mechanisms.some(mechanism => mechanism.kind === 'conveyor')) {
+          const tick = (now: number) => {
+            result.draw(current.current,now)
+            animationId = requestAnimationFrame(tick)
+          }
+          animationId = requestAnimationFrame(tick)
+        }
       }).catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason)) })
     })
-    return () => { cancelled = true; cancelPreparation(); abort.abort(); observer.disconnect(); owned?.dispose(); renderer.current = null }
+    return () => {
+      cancelled = true; cancelPreparation(); abort.abort(); observer.disconnect()
+      if (animationId !== undefined) cancelAnimationFrame(animationId)
+      owned?.dispose(); renderer.current = null
+    }
   }, [level,exitDirection,camera])
   return <div className="board-3d" aria-busy={!ready && !error}>
     <canvas ref={canvas} role="img" aria-label={`三维关卡地图，${level.width}列${level.height}行，第${frame.state.turn}步。`} data-renderer={error ? 'error' : ready ? 'webgpu' : 'loading'} />

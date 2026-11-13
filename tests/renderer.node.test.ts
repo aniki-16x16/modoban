@@ -151,6 +151,7 @@ test('WebGPU preparation is shared across cancellation, replacement, navigation,
   const counts = { adapters: 0, devices: 0, pipelines: 0, destroyedDevices: 0, textures: 0, destroyedTextures: 0, buffers: 0, destroyedBuffers: 0, submissions: 0, vertexBytes: 0, matrixBytes: 0, writes: 0 }
   const losses: ((info: GPUDeviceLostInfo) => void)[] = []
   const errors: ((event: GPUUncapturedErrorEvent) => void)[] = []
+  const uniformOffsets: number[] = []
   let failPipeline = true
   const gpu = {
     getPreferredCanvasFormat: () => 'bgra8unorm',
@@ -190,6 +191,7 @@ test('WebGPU preparation is shared across cancellation, replacement, navigation,
                 counts.writes++
                 if (buffer.usage & 32) counts.vertexBytes += data.byteLength
                 if (buffer.usage & 128) counts.matrixBytes += data.byteLength
+                if (buffer.usage & 64) uniformOffsets.push(new Float32Array(data.buffer,data.byteOffset,data.byteLength/4)[19])
               },
               submit: () => { counts.submissions++ },
             },
@@ -294,4 +296,23 @@ test('WebGPU preparation is shared across cancellation, replacement, navigation,
   assert.equal(counts.vertexBytes,residentBytes,'animation never uploads an unchanged model')
   assert.ok(counts.matrixBytes>transforms,'animation uploads its changed transforms')
   recovered.dispose()
+
+  const beltLevel = allLevels.find(p=>p.definition.id==='chapter-3-01')!.definition
+  const beltController = new GameController(beltLevel), idleFrame = beltController.frame()
+  const beltRenderer = await createRenderer(surface().canvas,beltLevel,'right',undefined,()=>{},new AbortController().signal)
+  beltRenderer.draw(idleFrame,0)
+  const residentBeltBytes = counts.vertexBytes, beltMatrices = counts.matrixBytes, idleSubmissions = counts.submissions
+  beltRenderer.draw(idleFrame,100)
+  assert.equal(counts.submissions,idleSubmissions+1,'conveyors redraw while the gameplay frame stays unchanged')
+  assert.equal(counts.vertexBytes,residentBeltBytes,'belt travel uploads no model vertices')
+  assert.equal(counts.matrixBytes,beltMatrices,'belt travel uploads no object transforms')
+  assert.ok(Math.abs(uniformOffsets.at(-1)!-.028)<1e-6,'belt travel follows wall-clock time')
+  beltRenderer.draw(idleFrame,100)
+  assert.equal(counts.submissions,idleSubmissions+1,'the same time and frame need no redraw')
+  beltController.input('right'); beltRenderer.draw(beltController.frame(),200)
+  beltController.reset(); beltRenderer.draw(beltController.frame(),300)
+  assert.ok(Math.abs(uniformOffsets.at(-1)!-.084)<1e-6,'resetting gameplay does not restart belt travel')
+  assert.equal(idleFrame.state.turn,0)
+  beltRenderer.dispose(); beltRenderer.draw(idleFrame,400)
+  assert.equal(counts.submissions,idleSubmissions+3,'disposing a conveyor renderer stops submissions')
 })

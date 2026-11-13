@@ -15,6 +15,21 @@ function arrow(mesh: Mesh, center: Vec3, direction: Direction, tint: ReturnType<
   mesh.line(point(.22,0),point(.05,.16),.045,tint)
 }
 
+function conveyor(mesh: Mesh, tint: ReturnType<typeof color>) {
+  // Build along local +X; the surface uses these coordinates for its scrolling pattern.
+  mesh.box([-.47,-.31,.005],[.47,.31,.065],color('#52675a'))
+  mesh.box([-.41,-.23,.065],[.41,.23,.075],color('#334b3f'))
+  mesh.quad([-.41,-.23,.077],[.41,-.23,.077],[.41,.23,.077],[-.41,.23,.077],tint,-1)
+  for (const side of [-1,1]) {
+    const y = side*.28
+    mesh.box([-.47,y-.03,.065],[.47,y+.03,.11],color('#a4b29d'))
+    mesh.line([-.4,y,.112],[.4,y,.112],.018,cream)
+    const x = side*.44
+    mesh.box([x-.03,-.25,.065],[x+.03,.25,.09],color('#7d9180'))
+    for (const end of [-.41,.41]) mesh.cylinder([end,y,.112],.017,.004,color('#4b6052'),0,12)
+  }
+}
+
 interface SceneCache {
   palette: ReturnType<typeof circuitPalette>
   scene: Scene
@@ -61,6 +76,15 @@ export function buildScene(level: LevelDefinition, frame: PlaybackFrame, exitDir
     arrow(mesh,[exit.x+.5,exit.y+.5,.07],exitDirection,color('#4f7852'))
   })
   for (const mechanism of level.mechanisms) {
+    if (mechanism.kind === 'conveyor') {
+      const tint = palette(mechanism.kind,mechanism.id)
+      const instance = scene.use(`mechanism:${mechanism.id}`,`conveyor:${tint}`,mesh => conveyor(mesh,color(tint)))
+      const angle = { right: 0, down: Math.PI/2, left: Math.PI, up: -Math.PI/2 }[mechanism.direction]
+      instance.transform(mechanism.position.x+.5,mechanism.position.y+.5,0)
+      instance.matrix[0] = instance.matrix[5] = Math.cos(angle)
+      instance.matrix[1] = Math.sin(angle); instance.matrix[4] = -Math.sin(angle)
+      continue
+    }
     const active = frame.state.pressures.find(p=>p.id===mechanism.id)?.active
     part(`mechanism:${mechanism.id}`, String(active), mesh => {
       const {x,y} = mechanism.position, tint = color(palette(mechanism.kind,mechanism.id))
@@ -72,15 +96,6 @@ export function buildScene(level: LevelDefinition, frame: PlaybackFrame, exitDir
         mesh.box([x+.12,y+.12,.005],[x+.88,y+.88,.06],tint)
         mesh.box([x+.22,y+.22,.06],[x+.78,y+.78,.065],color('#243c31'))
         for (let i=0;i<3;i++) mesh.line([x+.15,y+.3+i*.2,.07],[x+.85,y+.3+i*.2,.07],.03,tint)
-      } else {
-        mesh.box([x+.08,y+.08,.005],[x+.92,y+.92,.045],color('#7d9180'))
-        const horizontal = mechanism.direction === 'left' || mechanism.direction === 'right'
-        for (const offset of [.22,.42,.62,.82]) {
-          const start: Vec3 = horizontal ? [x+offset,y+.12,.05] : [x+.12,y+offset,.05]
-          const end: Vec3 = horizontal ? [x+offset,y+.88,.05] : [x+.88,y+offset,.05]
-          mesh.line(start,end,.025,color('#c2cabb'))
-        }
-        arrow(mesh,[x+.5,y+.5,.06],mechanism.direction,tint)
       }
     })
   }
