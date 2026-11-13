@@ -27,3 +27,21 @@ test('a cycle base, its brake, and all its doors share a control color', () => {
   assert.notEqual(color('axis', 'beat'), color('pressure', 'plate'))
   assert.notEqual(color('axis', 'beat'), color('axis', 'other'))
 })
+
+test('tiles on one logical conveyor share a color, including corners', () => {
+  const level = parseLevel({
+    id: 'belt-colors', width: 5, height: 3, walls: [], exit: { x: 4, y: 0 },
+    entities: [{ id: 'player', kind: 'player', position: { x: 4, y: 2 } }],
+    axes: [], doors: [],
+    mechanisms: [
+      { id: 'entry', kind: 'conveyor', beltId: 'A', position: { x: 0, y: 1 }, direction: 'right' },
+      { id: 'corner', kind: 'conveyor', beltId: 'A', position: { x: 1, y: 1 }, direction: 'down' },
+      { id: 'end', kind: 'conveyor', beltId: 'A', position: { x: 1, y: 2 }, direction: 'right' },
+      { id: 'other', kind: 'conveyor', beltId: 'B', position: { x: 2, y: 1 }, direction: 'right' },
+    ],
+  })
+  const color = circuitPalette(level)
+  assert.equal(color('conveyor', 'entry'), color('conveyor', 'corner'))
+  assert.equal(color('conveyor', 'entry'), color('conveyor', 'end'))
+  assert.notEqual(color('conveyor', 'entry'), color('conveyor', 'other'))
+})

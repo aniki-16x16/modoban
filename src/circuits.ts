@@ -18,6 +18,7 @@ export function circuitPalette(level: LevelDefinition) {
   for (const axis of level.axes) connect(`axis:${axis.id}`)
   for (const mechanism of level.mechanisms) {
     if (mechanism.kind === 'slot') connect(`slot:${mechanism.id}`, `axis:${mechanism.axisId}`)
+    else if (mechanism.kind === 'conveyor') connect(`conveyor:${mechanism.id}`, `belt:${mechanism.beltId}`)
     else connect(`${mechanism.kind}:${mechanism.id}`)
   }
   const palette = new Map<string, string>()
