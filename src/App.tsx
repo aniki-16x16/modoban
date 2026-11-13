@@ -58,6 +58,14 @@ function BrakeSlot({ color }: { color: string }) {
   </g>
 }
 
+function Conveyor({ direction, color }: { direction: Direction; color: string }) {
+  return <g transform={`rotate(${{ right: 0, down: 90, left: 180, up: 270 }[direction]})`}>
+    <rect x="-27" y="-27" width="54" height="54" rx="5" fill="#7d9180" stroke={color} strokeWidth="2" />
+    <path d="M-18-22v44M-6-22v44M6-22v44M18-22v44" stroke="#dce1cf" strokeWidth="2" opacity=".4" />
+    <path d="M-15 0h30M5-10 15 0 5 10" stroke={color} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+  </g>
+}
+
 function Gate({ color, extension, direction }: { color: string; extension: number; direction: DoorDirection }) {
   if (direction === 'z-down') {
     const inset = 5 + 5 * extension
@@ -102,7 +110,9 @@ function LevelPreview({ level, exitDirection = 'right' }: { level: LevelDefiniti
       <CycleBase axis={axis} phase={axis.initialPhase} locked={false} color={colorFor('axis', axis.id)} />
     </g>)}
     {level.mechanisms.map(plate => <g key={plate.id} transform={`translate(${plate.position.x + .5}, ${plate.position.y + .5}) scale(${1 / tile})`}>
-      {plate.kind === 'slot' ? <BrakeSlot color={colorFor('slot', plate.id)} /> : <PressureButton color={colorFor(plate.kind, plate.id)} />}
+      {plate.kind === 'slot' ? <BrakeSlot color={colorFor('slot', plate.id)} />
+        : plate.kind === 'conveyor' ? <Conveyor direction={plate.direction} color={colorFor('conveyor', plate.id)} />
+        : <PressureButton color={colorFor('pressure', plate.id)} />}
     </g>)}
     {level.doors.map(door => <g key={door.id} transform={`translate(${door.position.x}, ${door.position.y}) scale(${1 / tile})`}>
       <Gate color={colorFor('door', door.id)} extension={Number(door.initialExtended)} direction={door.direction} />

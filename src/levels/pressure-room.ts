@@ -4,6 +4,7 @@ import type { DoorDirection, LevelDefinition, Position } from '../engine/index.t
 interface PressureRoomOptions {
   readonly axes?: LevelDefinition['axes']
   readonly doors?: LevelDefinition['doors']
+  readonly mechanisms?: LevelDefinition['mechanisms']
   readonly doorDirections?: Readonly<Record<string, DoorDirection>>
 }
 
@@ -33,6 +34,6 @@ export function pressureRoom(id: string, rows: readonly string[], options: Press
     }
   }
   if (!exit) throw new Error(`${id}: missing exit`)
-  return parseLevel({ id, width, height: rows.length, walls, entities, mechanisms, doors: [...doors, ...(options.doors ?? [])], exit, axes: options.axes ?? [] })
+  return parseLevel({ id, width, height: rows.length, walls, entities, mechanisms: [...mechanisms, ...(options.mechanisms ?? [])], doors: [...doors, ...(options.doors ?? [])], exit, axes: options.axes ?? [] })
 }
 

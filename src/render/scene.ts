@@ -74,7 +74,13 @@ export function buildScene(level: LevelDefinition, frame: PlaybackFrame, exitDir
         for (let i=0;i<3;i++) mesh.line([x+.15,y+.3+i*.2,.07],[x+.85,y+.3+i*.2,.07],.03,tint)
       } else {
         mesh.box([x+.08,y+.08,.005],[x+.92,y+.92,.045],color('#7d9180'))
-        arrow(mesh,[x+.5,y+.5,.05],mechanism.direction,tint)
+        const horizontal = mechanism.direction === 'left' || mechanism.direction === 'right'
+        for (const offset of [.22,.42,.62,.82]) {
+          const start: Vec3 = horizontal ? [x+offset,y+.12,.05] : [x+.12,y+offset,.05]
+          const end: Vec3 = horizontal ? [x+offset,y+.88,.05] : [x+.88,y+offset,.05]
+          mesh.line(start,end,.025,color('#c2cabb'))
+        }
+        arrow(mesh,[x+.5,y+.5,.06],mechanism.direction,tint)
       }
     })
   }
